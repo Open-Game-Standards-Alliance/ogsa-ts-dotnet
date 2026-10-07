@@ -5,6 +5,7 @@ public enum FrameType : byte
 {
     Discovery = 0x00,
     Motion = 0x01,
+    Event = 0x02,
 }
 
 /// <summary>

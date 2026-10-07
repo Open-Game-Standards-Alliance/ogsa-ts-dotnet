@@ -16,6 +16,7 @@ public sealed class LtsReceiver : IDisposable
 
     public event Action<CapnpGen.DiscoveryFrame.READER>? DiscoveryReceived;
     public event Action<CapnpGen.MotionFrame.READER>? MotionReceived;
+    public event Action<CapnpGen.EventFrame.READER>? EventReceived;
 
     public long ForeignSkipped { get; private set; }
     public long DecodeErrors { get; private set; }
@@ -59,6 +60,10 @@ public sealed class LtsReceiver : IDisposable
                     case FrameType.Motion:
                         MotionReceived?.Invoke(
                             CapnpGen.MotionFrame.READER.create(DecodeRoot(payload)));
+                        break;
+                    case FrameType.Event:
+                        EventReceived?.Invoke(
+                            CapnpGen.EventFrame.READER.create(DecodeRoot(payload)));
                         break;
                 }
             }

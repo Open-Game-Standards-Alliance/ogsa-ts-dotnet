@@ -69,7 +69,12 @@ List<CapnpGen.DrivePointDescriptor> BuildWheels()
 using var sender = new LtsSender();
 Console.WriteLine("LtsDemo: sending to 239.255.17.17:40123 (Ctrl-C to stop)");
 
+uint nextEventId = 1;
 var lastDiscovery = DateTimeOffset.MinValue;
+var lastEvent = DateTimeOffset.MinValue;
+var lastEventSend = DateTimeOffset.MinValue;
+// recent events re-carried for ~100 ms per CONVENTIONS C-10 (replay + dedup)
+var recent = new Queue<(CapnpGen.Event ev, DateTimeOffset at)>();
 long frame = 0;
 while (true)
 {
@@ -80,6 +85,34 @@ while (true)
         discovery.serialize(mb.BuildRoot<CapnpGen.DiscoveryFrame.WRITER>());
         sender.Send(FrameType.Discovery, mb);
         lastDiscovery = now;
+    }
+
+    if ((now - lastEvent).TotalSeconds >= 3.0)
+    {
+        recent.Enqueue((new CapnpGen.Event
+        {
+            Id = nextEventId++,
+            Name = "body.impact",
+            Intensity = 0.8f,
+            Duration = 0.25f,
+            Direction = new CapnpGen.Vector3 { X = -1f, Y = 0f, Z = 0f },
+            Object = "",
+        }, now));
+        lastEvent = now;
+    }
+
+    while (recent.Count > 0 && (now - recent.Peek().at).TotalMilliseconds > 100)
+        recent.Dequeue();
+    if (recent.Count > 0 && (now - lastEventSend).TotalMilliseconds >= 50)
+    {
+        var emb = MessageBuilder.Create(512);
+        new CapnpGen.EventFrame
+        {
+            Timestamp = (float)frame / 60.0,
+            Events = recent.Select(r => r.ev).ToList(),
+        }.serialize(emb.BuildRoot<CapnpGen.EventFrame.WRITER>());
+        sender.Send(FrameType.Event, emb);
+        lastEventSend = now;
     }
 
     double t = frame / 60.0;
