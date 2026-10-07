@@ -13,11 +13,18 @@ public class LoopbackTests
         using var receiver = new LtsReceiver(port: port);
         var discovery = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var motion = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var evnt = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         receiver.DiscoveryReceived += d =>
             discovery.TrySetResult($"{d.GameName}/{d.Objects.Count}");
         receiver.MotionReceived += m =>
             motion.TrySetResult($"{m.Timestamp:F1}/{m.Objects[0].Name}");
+        receiver.EventReceived += e =>
+        {
+            var first = e.Events.FirstOrDefault();
+            if (first.Name != null)
+                evnt.TrySetResult($"{first.Id}/{first.Name}");
+        };
         receiver.Start();
 
         using var sender = new LtsSender(port: port);
@@ -47,8 +54,21 @@ public class LoopbackTests
         }.serialize(mmb.BuildRoot<CapnpGen.MotionFrame.WRITER>());
         sender.Send(FrameType.Motion, mmb);
 
-        var done = await Task.WhenAll(discovery.Task, motion.Task).WaitAsync(TimeSpan.FromSeconds(5));
+        var evtMb = MessageBuilder.Create(512);
+        new CapnpGen.EventFrame
+        {
+            Timestamp = 42.5,
+            Events = new List<CapnpGen.Event>
+            {
+                new() { Id = 1, Name = "body.impact", Intensity = 1f, Duration = 0f },
+            },
+        }.serialize(evtMb.BuildRoot<CapnpGen.EventFrame.WRITER>());
+        sender.Send(FrameType.Event, evtMb);
+
+        var done = await Task.WhenAll(discovery.Task, motion.Task, evnt.Task)
+            .WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal("loopback-test/1", done[0]);
         Assert.Equal("42.0/car", done[1]);
+        Assert.Equal("1/body.impact", done[2]);
     }
 }

@@ -8,6 +8,8 @@ using var receiver = new LtsReceiver();
 var printedDiscovery = false;
 long motionSeen = 0;
 long violations = 0;
+var seenEventIds = new HashSet<uint>();
+long deduped = 0;
 
 receiver.DiscoveryReceived += d =>
 {
@@ -23,6 +25,18 @@ receiver.DiscoveryReceived += d =>
             Console.WriteLine($"    channel {ch.Id}: {ch.Name} [{ch.Unit}] range={DescribeRange(ch)}");
     }
     printedDiscovery = true;
+};
+
+receiver.EventReceived += e =>
+{
+    foreach (var ev in e.Events)
+    {
+        var dir = ev.which == CapnpGen.Event.WHICH.Direction
+            ? $" dir=({ev.Direction.X:F1},{ev.Direction.Y:F1},{ev.Direction.Z:F1})" : "";
+        if (!seenEventIds.Add(ev.Id)) { deduped++; continue; }
+        Console.WriteLine($"Event: id={ev.Id} {ev.Name} intensity={ev.Intensity:F2} " +
+                          $"duration={ev.Duration:F2}s{dir} object='{ev.Object}'");
+    }
 };
 
 receiver.MotionReceived += m =>
@@ -45,6 +59,8 @@ void Warn(string msg) { violations++; Console.WriteLine($"  [warn] {msg}"); }
 
 receiver.Start();
 Console.WriteLine("LtsReceive: listening on 239.255.17.17:40123 (Ctrl-C to stop)");
-while (!printedDiscovery && motionSeen < 5) await Task.Delay(100);
+while (!printedDiscovery || motionSeen < 5 || seenEventIds.Count == 0)
+    await Task.Delay(100);
 Console.WriteLine($"Summary: discoverySeen={printedDiscovery} motionFrames={motionSeen} " +
+                  $"events={seenEventIds.Count} dedupedReplays={deduped} " +
                   $"warnings={violations} foreignSkipped={receiver.ForeignSkipped}");
