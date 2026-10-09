@@ -1,6 +1,6 @@
 # lts-dotnet
 
-.NET reference implementation of the [Local Telemetry Standard (LTS)](../Local-Telemetry-Standard)
+.NET reference implementation of the [OGSA Telemetry Standard (OGSA-TS)](../Local-Telemetry-Standard)
 — a two-layer, UDP-multicast motion telemetry protocol for motion platforms,
 haptics, and cueing systems. Loopback-testable on any single machine
 (macOS, Linux, Windows); the same code is the starting point for Unity
