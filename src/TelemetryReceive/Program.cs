@@ -7,6 +7,7 @@ using CapnpGen;
 using var receiver = new TelemetryReceiver();
 var printedDiscovery = false;
 long motionSeen = 0;
+var motionPerObject = new Dictionary<string, long>();
 long violations = 0;
 var seenEventIds = new HashSet<uint>();
 long deduped = 0;
@@ -46,7 +47,12 @@ receiver.MotionReceived += m =>
     var q = primary.Orientation;
     float norm = MathF.Sqrt(q.X * q.X + q.Y * q.Y + q.Z * q.Z + q.W * q.W);
     if (MathF.Abs(norm - 1f) > 1e-3f) Warn($"quaternion norm {norm:F4} != 1 on '{primary.Name}'");
-    if (motionSeen % 180 == 0)
+    motionSeen++;
+    // throttle per object: a global frame counter would only ever print
+    // one sender when several publishers interleave (modulo parity)
+    long seen = motionPerObject.TryGetValue(primary.Name ?? "?", out var n) ? n : 0;
+    motionPerObject[primary.Name ?? "?"] = seen + 1;
+    if (seen % 180 == 0)
     {
         var vals = string.Join(" ", primary.Channels.Select(c =>
             c.which == CapnpGen.ChannelValue.WHICH.Boolean
@@ -56,7 +62,6 @@ receiver.MotionReceived += m =>
                           $"pos=({primary.Position.X:F2},{primary.Position.Y:F2},{primary.Position.Z:F2}) " +
                           $"|q|={norm:F3}{(vals.Length > 0 ? " " + vals : "")}");
     }
-    motionSeen++;
 };
 
 string DescribeRange(ChannelDescriptor.READER ch) =>
