@@ -16,8 +16,16 @@ public class ConformanceVectorTests
                !File.Exists(Path.Combine(dir.FullName, "Ogsa.Telemetry.slnx")))
             dir = dir.Parent;
         Assert.NotNull(dir);
-        return Path.Combine(dir!.Parent!.FullName,
-            "OGSA-Telemetry-Standard", "conformance");
+        // sibling of the repo (local dev), then nested inside it (CI checks
+        // the standard repo out into the workspace), then any ancestor
+        string[] candidates =
+        {
+            Path.Combine(dir!.Parent!.FullName, "OGSA-Telemetry-Standard", "conformance"),
+            Path.Combine(dir.FullName, "OGSA-Telemetry-Standard", "conformance"),
+        };
+        var found = candidates.FirstOrDefault(Directory.Exists);
+        Assert.NotNull(found);
+        return found!;
     }
 
     static (FrameType Type, DeserializerState Root) Load(string id)
