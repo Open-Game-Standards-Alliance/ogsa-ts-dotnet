@@ -9,7 +9,7 @@ integrations and Windows-based receivers.
 Status: **bootstrap** — envelope, multicast transport, generated Cap'n Proto
 bindings, a demo sender, a reference receiver, and a passing loopback test
 suite. The schema layer is generated from the standard's schema
-(`open_motion_telemetry.capnp`, currently v1); wire compatibility follows
+(`ogsa_telemetry.capnp`, currently v1); wire compatibility follows
 the standard's evolution rules (unknown fields/enums/frame types skipped).
 
 ## Layout
@@ -49,7 +49,7 @@ liveness rules receivers should apply.
 ## Regenerating bindings after a schema change
 
 ```bash
-cp ../OGSA-Telemetry-Standard/open_motion_telemetry.capnp capnp/
+cp ../OGSA-Telemetry-Standard/ogsa_telemetry.capnp capnp/
 capnp/build.sh
 ```
 

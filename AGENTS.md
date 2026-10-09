@@ -1,6 +1,6 @@
 # ogsa-ts-dotnet working conventions
 
-- Schema is vendored at `capnp/open_motion_telemetry.capnp` from the
+- Schema is vendored at `capnp/ogsa_telemetry.capnp` from the
   OGSA-Telemetry-Standard repo (single source of truth lives there).
   After editing the schema there, copy it here and run `capnp/build.sh`
   to regenerate `src/Ogsa.Telemetry/Schema/*.cs` (generated code is committed).
