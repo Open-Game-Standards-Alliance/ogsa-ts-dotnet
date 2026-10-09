@@ -11,6 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.ORG }}/OGSA-Telemetry-Standard
+          path: OGSA-Telemetry-Standard
+        # (ConformanceVectorTests decode the corpus — checked out inside the
+        # repo for CI; CorpusDir() probes nested then sibling)
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
