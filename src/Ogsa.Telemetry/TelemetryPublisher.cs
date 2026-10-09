@@ -70,6 +70,14 @@ public sealed class TelemetryPublisher : IDisposable
     readonly Queue<(CapnpGen.Event ev, double at)> _recentEvents = new();
     uint _nextEventId = 1;
 
+    // Cached wire frames. The object graphs are structurally identical on
+    // every send (declarations lock at the first tick), so they are built
+    // once and refilled in place — the 60-240 Hz motion path stops
+    // allocating a frame graph per tick.
+    CapnpGen.DiscoveryFrame? _discoveryFrame;
+    CapnpGen.MotionFrame? _motionFrame;
+    List<CapnpGen.ChannelValue>? _motionValues;
+
     double _anchor;                 // host clock value at first tick
     double _lastDiscovery = double.NegativeInfinity;
     double _lastMotion = double.NegativeInfinity;
@@ -148,8 +156,9 @@ public sealed class TelemetryPublisher : IDisposable
             Name = name,
             Unit = unit.ToWireString(),
             Description = description,
+            // generated code is not nullable-annotated: null = no range
             Range = double.IsNaN(min) || double.IsNaN(max)
-                ? null
+                ? null!
                 : new CapnpGen.Range { Min = min, Max = max },
         });
         return new ChannelHandle(b.Id, name, unit, boolean);
@@ -286,7 +295,7 @@ public sealed class TelemetryPublisher : IDisposable
         Tick(_clock.Elapsed.TotalSeconds);
     }
 
-    /// <summary>Clears bindings and queued events. Does not dispose the
+    /// <summary>Clears bindings and cached frames. Does not dispose the
     /// sender — the host owns it.</summary>
     public void Dispose()
     {
@@ -294,9 +303,16 @@ public sealed class TelemetryPublisher : IDisposable
         _recentEvents.Clear();
         _getPosition = null;
         _getOrientation = null;
+        _discoveryFrame = null;
+        _motionFrame = null;
+        _motionValues = null;
     }
 
-    CapnpGen.DiscoveryFrame BuildDiscovery() => new()
+    // Built once: every field is fixed per publisher (declarations are
+    // locked before the first send) and the serializer only reads. The
+    // descriptor lists are referenced live rather than copied — they are
+    // immutable after the lock.
+    CapnpGen.DiscoveryFrame BuildDiscovery() => _discoveryFrame ??= new CapnpGen.DiscoveryFrame
     {
         SchemaVersion = 1,
         GameName = _gameName,
@@ -317,53 +333,65 @@ public sealed class TelemetryPublisher : IDisposable
                 Location = "local",
                 ReferencePoint = new CapnpGen.NamedPoint
                     { Name = "origin", Position = new CapnpGen.Vector3() },
-                DrivePoints = _drivePoints.ToList(),
-                Channels = _descriptors.ToList(),
+                DrivePoints = _drivePoints,
+                Channels = _descriptors,
             },
         },
     };
 
     CapnpGen.MotionFrame BuildMotion(double nowSeconds)
     {
-        var obj = new CapnpGen.MotionObject { Name = _objectName };
+        if (_motionFrame is null || _motionValues!.Count != _bindings.Count)
+        {
+            // (re)build the cached graph: one object, one value per binding,
+            // union discriminants are rewritten on every assignment so the
+            // cached ChannelValues serialize exactly like fresh ones
+            _motionValues = new List<CapnpGen.ChannelValue>(_bindings.Count);
+            for (int i = 0; i < _bindings.Count; i++)
+                _motionValues.Add(new CapnpGen.ChannelValue { Id = (ushort)i });
+            var o = new CapnpGen.MotionObject { Name = _objectName };
+            if (_motionValues.Count > 0) o.Channels = _motionValues;
+            _motionFrame = new CapnpGen.MotionFrame
+            {
+                Objects = new List<CapnpGen.MotionObject> { o },
+            };
+        }
+
+        var obj = _motionFrame.Objects[0];
         if (_getPosition is not null)
         {
             var p = _getPosition();
-            obj.Position = new CapnpGen.Vector3 { X = p.X, Y = p.Y, Z = p.Z };
+            if (obj.Position is null) obj.Position = new CapnpGen.Vector3();
+            obj.Position.X = p.X; obj.Position.Y = p.Y; obj.Position.Z = p.Z;
         }
+        else obj.Position = null!;
         if (_getOrientation is not null)
         {
             var q = _getOrientation();
-            obj.Orientation = new CapnpGen.Quaternion { X = q.X, Y = q.Y, Z = q.Z, W = q.W };
+            if (obj.Orientation is null) obj.Orientation = new CapnpGen.Quaternion();
+            obj.Orientation.X = q.X; obj.Orientation.Y = q.Y;
+            obj.Orientation.Z = q.Z; obj.Orientation.W = q.W;
         }
+        else obj.Orientation = null!;
 
         // v1 streams all declared channels each tick; the schema permits
         // sending only changed values once senders have hundreds of channels.
-        var values = new List<CapnpGen.ChannelValue>(_bindings.Count);
-        foreach (var b in _bindings)
+        var values = _motionValues!;
+        for (int i = 0; i < _bindings.Count; i++)
         {
+            var b = _bindings[i];
             if (b.Boolean)
-            {
-                bool v = b.Get is not null
+                values[i].Boolean = b.Get is not null
                     ? b.Get() != 0.0
                     : b.BoolValue;
-                values.Add(new CapnpGen.ChannelValue { Id = (ushort)b.Id, Boolean = v });
-            }
             else
-            {
-                double v = b.Get is not null
+                values[i].Number = (float)(b.Get is not null
                     ? (b.Convert is not null ? b.Convert(b.Get()) : b.Get())
-                    : b.Pushed;
-                values.Add(new CapnpGen.ChannelValue { Id = (ushort)b.Id, Number = (float)v });
-            }
+                    : b.Pushed);
         }
-        if (values.Count > 0) obj.Channels = values;
 
-        return new CapnpGen.MotionFrame
-        {
-            Timestamp = nowSeconds - _anchor,
-            Objects = new List<CapnpGen.MotionObject> { obj },
-        };
+        _motionFrame.Timestamp = nowSeconds - _anchor;
+        return _motionFrame;
     }
 
     Binding GetBinding(ChannelHandle channel, bool expectBoolean)

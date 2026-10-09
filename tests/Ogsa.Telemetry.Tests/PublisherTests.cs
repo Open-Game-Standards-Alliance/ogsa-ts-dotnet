@@ -165,6 +165,47 @@ public class PublisherLoopbackTests
     }
 
     [Fact]
+    public async Task Cached_Motion_Frames_Carry_Updated_Values_Across_Ticks()
+    {
+        // The frame object graph is cached after the first tick; pushed and
+        // pulled values must still update on every subsequent frame.
+        const int port = 41241;
+        using var receiver = new TelemetryReceiver(port: port);
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int frames = 0;
+        double latestPush = double.NaN, latestPull = double.NaN;
+        receiver.MotionReceived += m =>
+        {
+            frames++;
+            var ch = m.Objects[0].Channels;
+            latestPush = ch[0].Number;
+            latestPull = ch[1].Number;
+            if (frames >= 3) done.TrySetResult();
+        };
+        receiver.Start();
+
+        using var sender = new TelemetrySender(port: port);
+        using var pub = new TelemetryPublisher(sender, "cache-test", motionHz: 60);
+        pub.DeclareObject("car");
+        var push = pub.DeclareChannel("push.channel", Unit.Scalar);
+        var pull = pub.DeclareChannel("pull.channel", Unit.MetrePerSecond);
+        double pulled = 1.0;
+        pub.BindChannel(pull, () => pulled, Unit.MetrePerSecond);
+
+        pub.SetChannel(push, 10.0);
+        pub.Tick(0.0);
+        pub.SetChannel(push, 20.0);
+        pub.Tick(0.017);
+        pub.SetChannel(push, 30.0);
+        pulled = 5.0;
+        pub.Tick(0.034);
+
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(30.0, latestPush, 3); // third frame carries the latest push
+        Assert.Equal(5.0, latestPull, 3);  // and the latest pulled value
+    }
+
+    [Fact]
     public void BindChannel_Rejects_Incompatible_Source_Unit()
     {
         using var sender = new TelemetrySender(port: 41238);
