@@ -1,4 +1,4 @@
-# lts-dotnet
+# ogsa-ts-dotnet
 
 .NET reference implementation of the [OGSA Telemetry Standard (OGSA-TS)](../OGSA-Telemetry-Standard)
 — a two-layer, UDP-multicast motion telemetry protocol for motion platforms,
@@ -16,11 +16,11 @@ the standard's evolution rules (unknown fields/enums/frame types skipped).
 
 | Path | Contents |
 |---|---|
-| `src/Lts` | Library: `Envelope` (OMT1 header + Cap'n Proto message codec), `LtsSender`, `LtsReceiver` |
-| `src/Lts/Schema` | Generated bindings (`capnp/build.sh` regenerates) |
-| `src/LtsDemo` | Demo sender: one car, discovery every 2 s, ~60 Hz motion |
-| `src/LtsReceive` | Reference receiver with conformance checks |
-| `tests/Lts.Tests` | xunit: envelope codec, capnp roundtrip, UDP multicast loopback |
+| `src/Ogsa.Telemetry` | Library: `Envelope` (OMT1 header + Cap'n Proto message codec), `TelemetrySender`, `TelemetryReceiver` |
+| `src/Ogsa.Telemetry/Schema` | Generated bindings (`capnp/build.sh` regenerates) |
+| `src/TelemetryDemo` | Demo sender: one car, discovery every 2 s, ~60 Hz motion |
+| `src/TelemetryReceive` | Reference receiver with conformance checks |
+| `tests/Ogsa.Telemetry.Tests` | xunit: envelope codec, capnp roundtrip, UDP multicast loopback |
 
 ## Build & test
 
@@ -34,8 +34,8 @@ dotnet test
 Two terminals:
 
 ```bash
-dotnet run --project src/LtsReceive
-dotnet run --project src/LtsDemo
+dotnet run --project src/TelemetryReceive
+dotnet run --project src/TelemetryDemo
 ```
 
 The receiver prints the discovery frame (object, drive points, channels),

@@ -1,4 +1,4 @@
-using Lts;
+using Ogsa.Telemetry;
 using Capnp;
 
 // Demo sender: one vehicle object, discovery every 2 s, motion at ~60 Hz.
@@ -8,7 +8,7 @@ using Capnp;
 var discovery = new CapnpGen.DiscoveryFrame
 {
     SchemaVersion = 1,
-    GameName = "LtsDemo",
+    GameName = "TelemetryDemo",
     SessionStartUnixUs = DateTimeOffset.UtcNow.UtcTicks / 10, // µs
     Environment = new CapnpGen.Environment
     {
@@ -21,7 +21,7 @@ var discovery = new CapnpGen.DiscoveryFrame
         {
             Name = "player_car",
             Type = CapnpGen.ObjectType.vehicle,
-            TypeLabel = "Lts demo car",
+            TypeLabel = "OGSA-TS demo car",
             Primary = true,
             Location = "loopback",
             ReferencePoint = new CapnpGen.NamedPoint
@@ -66,8 +66,8 @@ List<CapnpGen.DrivePointDescriptor> BuildWheels()
     return list;
 }
 
-using var sender = new LtsSender();
-Console.WriteLine("LtsDemo: sending to 239.255.17.17:40123 (Ctrl-C to stop)");
+using var sender = new TelemetrySender();
+Console.WriteLine("TelemetryDemo: sending to 239.255.17.17:40123 (Ctrl-C to stop)");
 
 uint nextEventId = 1;
 var lastDiscovery = DateTimeOffset.MinValue;

@@ -1,4 +1,4 @@
-using Lts;
+using Ogsa.Telemetry;
 using Capnp;
 using Xunit;
 
@@ -10,7 +10,7 @@ public class LoopbackTests
     public async Task Sender_And_Receiver_Roundtrip_Over_Multicast()
     {
         const int port = 41235; // away from the default 40123 to avoid interference
-        using var receiver = new LtsReceiver(port: port);
+        using var receiver = new TelemetryReceiver(port: port);
         var discovery = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var motion = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var evnt = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -27,7 +27,7 @@ public class LoopbackTests
         };
         receiver.Start();
 
-        using var sender = new LtsSender(port: port);
+        using var sender = new TelemetrySender(port: port);
 
         var mb = MessageBuilder.Create(512);
         new CapnpGen.DiscoveryFrame

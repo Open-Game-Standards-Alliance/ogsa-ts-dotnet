@@ -1,4 +1,4 @@
-using Lts;
+using Ogsa.Telemetry;
 using Xunit;
 
 public class EnvelopeTests

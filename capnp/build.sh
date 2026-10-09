@@ -11,5 +11,5 @@ if [ -x "$REPO/tools-bin/capnpc-csharp" ]; then
 else
   PLUGIN=csharp
 fi
-capnp compile -o "$PLUGIN:$REPO/src/Lts/Schema" open_motion_telemetry.capnp
-echo "generated: $REPO/src/Lts/Schema/open_motion_telemetry.capnp.cs"
+capnp compile -o "$PLUGIN:$REPO/src/Ogsa.Telemetry/Schema" open_motion_telemetry.capnp
+echo "generated: $REPO/src/Ogsa.Telemetry/Schema/open_motion_telemetry.capnp.cs"

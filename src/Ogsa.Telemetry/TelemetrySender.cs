@@ -1,19 +1,19 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace Lts;
+namespace Ogsa.Telemetry;
 
 /// <summary>
 /// LTS UDP-multicast sender. Default endpoint: 239.255.17.17:40123, TTL 1
 /// (same subnet), loopback enabled for local development (see
 /// implementation-udp.md).
 /// </summary>
-public sealed class LtsSender : IDisposable
+public sealed class TelemetrySender : IDisposable
 {
     readonly Socket _socket;
     readonly IPEndPoint _endpoint;
 
-    public LtsSender(string group = "239.255.17.17", int port = 40123,
+    public TelemetrySender(string group = "239.255.17.17", int port = 40123,
                      int ttl = 1, bool loopback = true)
     {
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);

@@ -11,6 +11,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Lts/Lts.csproj" />
+    <ProjectReference Include="../../src/Ogsa.Telemetry/Ogsa.Telemetry.csproj" />
   </ItemGroup>
 </Project>

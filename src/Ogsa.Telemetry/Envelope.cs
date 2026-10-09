@@ -1,4 +1,4 @@
-namespace Lts;
+namespace Ogsa.Telemetry;
 
 /// <summary>Frame type byte in the OMT1 envelope (see implementation-udp.md).</summary>
 public enum FrameType : byte
