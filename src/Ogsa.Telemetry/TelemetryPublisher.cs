@@ -68,6 +68,7 @@ public sealed class TelemetryPublisher : IDisposable
     Func<Quaternion>? _getOrientation;
 
     readonly Queue<(CapnpGen.Event ev, double at)> _recentEvents = new();
+    readonly List<CapnpGen.Event> _eventScratch = new(); // reused re-carrier list
     uint _nextEventId = 1;
 
     // Cached wire frames. The object graphs are structurally identical on
@@ -277,10 +278,13 @@ public sealed class TelemetryPublisher : IDisposable
         if (_recentEvents.Count > 0 && nowSeconds - _lastEventSend >= 0.050)
         {
             var mb = Capnp.MessageBuilder.Create(512);
+            _eventScratch.Clear();
+            foreach (var (ev, _) in _recentEvents)
+                _eventScratch.Add(ev);
             new CapnpGen.EventFrame
             {
                 Timestamp = nowSeconds - _anchor,
-                Events = _recentEvents.Select(r => r.ev).ToList(),
+                Events = _eventScratch,
             }.serialize(mb.BuildRoot<CapnpGen.EventFrame.WRITER>());
             _sender.Send(FrameType.Event, mb);
             _lastEventSend = nowSeconds;

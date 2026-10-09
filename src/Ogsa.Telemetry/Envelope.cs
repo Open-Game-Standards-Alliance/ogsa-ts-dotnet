@@ -34,18 +34,22 @@ public static class Envelope
     }
 
     /// <summary>Checks magic; frame types are advisory — unknown types yield
-    /// false (receivers silently skip foreign/future frames).</summary>
-    public static bool TryUnwrap(ReadOnlySpan<byte> datagram, out FrameType type, out ReadOnlyMemory<byte> capnpMessage)
+    /// false (receivers silently skip foreign/future frames). Takes a
+    /// Memory so the payload slice is zero-copy when the caller owns the
+    /// buffer (byte[] converts implicitly).</summary>
+    public static bool TryUnwrap(ReadOnlyMemory<byte> datagram, out FrameType type, out ReadOnlyMemory<byte> capnpMessage)
     {
         type = default;
         capnpMessage = default;
         if (datagram.Length < HeaderSize) return false;
-        if (!datagram.Slice(0, 4).SequenceEqual(Magic)) return false;
-        type = (FrameType)datagram[4];
-        // netstandard2.1-safe overload (generic Enum.IsDefined<T> is .NET 5+);
-        // boxing is fine here — receive path, once per datagram
-        if (!Enum.IsDefined(typeof(FrameType), type)) return false;
-        capnpMessage = new ReadOnlyMemory<byte>(datagram.ToArray(), HeaderSize, datagram.Length - HeaderSize);
+        var span = datagram.Span;
+        if (!span.Slice(0, 4).SequenceEqual(Magic)) return false;
+        var t = (FrameType)span[4];
+        // values are contiguous 0..Event — a range check avoids
+        // Enum.IsDefined's per-datagram boxing and is netstandard2.1-safe
+        if (t > FrameType.Event) return false;
+        type = t;
+        capnpMessage = datagram.Slice(HeaderSize);
         return true;
     }
 
@@ -79,6 +83,37 @@ public static class Envelope
     }
 
     public static byte[] EncodeMessage(Capnp.MessageBuilder mb) => EncodeMessage(mb.Frame.Segments);
+
+    /// <summary>Full datagram in one allocation and one copy: the 8-byte
+    /// OMT1 header, then the segment-table encoding. Byte-identical to
+    /// <c>Wrap(type, EncodeMessage(mb))</c> — the sender hot path uses this
+    /// to avoid the extra buffer.</summary>
+    public static byte[] EncodeDatagram(FrameType type, IReadOnlyList<Memory<ulong>> segments)
+    {
+        int n = segments.Count;
+        long words = 0;
+        for (int i = 0; i < n; i++) words += segments[i].Length;
+        int tableWords = (1 + n + ((1 + n) & 1)) / 2;
+        var buf = new byte[HeaderSize + (tableWords + words) * 8];
+        Magic.AsSpan().CopyTo(buf);
+        buf[4] = (byte)type;
+        int off = HeaderSize;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(
+            buf.AsSpan(off), (uint)(n - 1));
+        for (int i = 0; i < n; i++)
+        {
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(
+                buf.AsSpan(off + 4 * (1 + i)), (uint)segments[i].Length);
+        }
+        long w = tableWords;
+        for (int i = 0; i < n; i++)
+        {
+            System.Runtime.InteropServices.MemoryMarshal.AsBytes(segments[i].Span)
+                .CopyTo(buf.AsSpan(HeaderSize + (int)w * 8));
+            w += segments[i].Length;
+        }
+        return buf;
+    }
 
     /// <summary>Decodes a segment-table-encoded message into a WireFrame.</summary>
     public static Capnp.WireFrame DecodeMessage(ReadOnlySpan<byte> message)

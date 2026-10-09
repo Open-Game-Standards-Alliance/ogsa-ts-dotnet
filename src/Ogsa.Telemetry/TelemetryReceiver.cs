@@ -57,7 +57,7 @@ public sealed class TelemetryReceiver : IDisposable
                     if (!_socket.Poll(200_000, SelectMode.SelectRead)) continue; // 200 ms
                 }
                 len = _socket.ReceiveFrom(buf, ref from);
-                if (!Envelope.TryUnwrap(buf.AsSpan(0, len), out var type, out var payload))
+                if (!Envelope.TryUnwrap(buf.AsMemory(0, len), out var type, out var payload))
                 {
                     ForeignSkipped++;
                     continue;
