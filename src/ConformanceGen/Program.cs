@@ -33,12 +33,11 @@ var manifest = new
 };
 
 void Emit(string id, string frameType, string description, FrameType type,
-          object frame, object input)
+          Action<MessageBuilder> serialize, object input)
 {
     var mb = MessageBuilder.Create(512);
-    var ser = (dynamic)frame;
-    ser.serialize((dynamic)GetWriterRoot(mb, frameType));
-    var datagram = Envelope.Wrap(type, Envelope.EncodeMessage(mb));
+    serialize(mb);
+    var datagram = Envelope.EncodeDatagram(type, mb.Frame.Segments);
     var hex = Convert.ToHexString(datagram).ToLowerInvariant();
     var wrapped = new StringBuilder();
     for (int i = 0; i < hex.Length; i += 64)
@@ -51,35 +50,29 @@ void Emit(string id, string frameType, string description, FrameType type,
     Console.WriteLine($"  {id}: {datagram.Length} bytes");
 }
 
-object GetWriterRoot(MessageBuilder mb, string frameType) => frameType switch
-{
-    "discovery" => mb.BuildRoot<CapnpGen.DiscoveryFrame.WRITER>(),
-    "motion" => mb.BuildRoot<CapnpGen.MotionFrame.WRITER>(),
-    "event" => mb.BuildRoot<CapnpGen.EventFrame.WRITER>(),
-    _ => throw new ArgumentException(frameType),
-};
-
 // ---- vector 1: minimal discovery -------------------------------------
+var discoveryMinimal = new CapnpGen.DiscoveryFrame
+{
+    SchemaVersion = 1,
+    GameName = "conformance",
+    SessionStartUnixUs = sessionUs,
+    Environment = Env(),
+    Objects = new List<CapnpGen.ObjectDescriptor>
+    {
+        new()
+        {
+            Name = "obj", Type = CapnpGen.ObjectType.vehicle, Primary = true,
+            Location = "local",
+            ReferencePoint = new CapnpGen.NamedPoint
+                { Name = "origin", Position = new CapnpGen.Vector3() },
+        },
+    },
+};
 Emit("discovery-minimal", "discovery",
     "Smallest valid DiscoveryFrame: one primary object, no channels or drive points",
     FrameType.Discovery,
-    new CapnpGen.DiscoveryFrame
-    {
-        SchemaVersion = 1,
-        GameName = "conformance",
-        SessionStartUnixUs = sessionUs,
-        Environment = Env(),
-        Objects = new List<CapnpGen.ObjectDescriptor>
-        {
-            new()
-            {
-                Name = "obj", Type = CapnpGen.ObjectType.vehicle, Primary = true,
-                Location = "local",
-                ReferencePoint = new CapnpGen.NamedPoint
-                    { Name = "origin", Position = new CapnpGen.Vector3() },
-            },
-        },
-    },
+    mb => discoveryMinimal.serialize(
+        mb.BuildRoot<CapnpGen.DiscoveryFrame.WRITER>()),
     new
     {
         schemaVersion = 1, gameName = "conformance", sessionStartUnixUs = sessionUs,
@@ -88,34 +81,36 @@ Emit("discovery-minimal", "discovery",
     });
 
 // ---- vector 2: discovery with channels (mirrors the Unity demo car) --
-Emit("discovery-channels", "discovery",
-    "Object with three channels incl. ranges and a unitless boolean channel",
-    FrameType.Discovery,
-    new CapnpGen.DiscoveryFrame
+var discoveryChannels = new CapnpGen.DiscoveryFrame
+{
+    SchemaVersion = 1,
+    GameName = "conformance",
+    SessionStartUnixUs = sessionUs,
+    Environment = Env(),
+    Objects = new List<CapnpGen.ObjectDescriptor>
     {
-        SchemaVersion = 1,
-        GameName = "conformance",
-        SessionStartUnixUs = sessionUs,
-        Environment = Env(),
-        Objects = new List<CapnpGen.ObjectDescriptor>
+        new()
         {
-            new()
+            Name = "demo_car", Type = CapnpGen.ObjectType.vehicle,
+            TypeLabel = "conformance car", Primary = true, Location = "local",
+            ReferencePoint = new CapnpGen.NamedPoint
+                { Name = "origin", Position = new CapnpGen.Vector3() },
+            Channels = new List<CapnpGen.ChannelDescriptor>
             {
-                Name = "demo_car", Type = CapnpGen.ObjectType.vehicle,
-                TypeLabel = "conformance car", Primary = true, Location = "local",
-                ReferencePoint = new CapnpGen.NamedPoint
-                    { Name = "origin", Position = new CapnpGen.Vector3() },
-                Channels = new List<CapnpGen.ChannelDescriptor>
-                {
-                    new() { Id = 0, Name = "engine.rpm", Unit = "rpm",
-                            Range = new CapnpGen.Range { Min = 0, Max = 9000 } },
-                    new() { Id = 1, Name = "vehicle.speed", Unit = "m/s",
-                            Range = new CapnpGen.Range { Min = 0, Max = 30 } },
-                    new() { Id = 2, Name = "lights.headlights", Unit = "" },
-                },
+                new() { Id = 0, Name = "engine.rpm", Unit = "rpm",
+                        Range = new CapnpGen.Range { Min = 0, Max = 9000 } },
+                new() { Id = 1, Name = "vehicle.speed", Unit = "m/s",
+                        Range = new CapnpGen.Range { Min = 0, Max = 30 } },
+                new() { Id = 2, Name = "lights.headlights", Unit = "" },
             },
         },
     },
+};
+Emit("discovery-channels", "discovery",
+    "Object with three channels incl. ranges and a unitless boolean channel",
+    FrameType.Discovery,
+    mb => discoveryChannels.serialize(
+        mb.BuildRoot<CapnpGen.DiscoveryFrame.WRITER>()),
     new
     {
         schemaVersion = 1, gameName = "conformance", sessionStartUnixUs = sessionUs,
@@ -128,22 +123,23 @@ Emit("discovery-channels", "discovery",
     });
 
 // ---- vector 3: motion, pose only -------------------------------------
+var motionPose = new CapnpGen.MotionFrame
+{
+    Timestamp = 1.25,
+    Objects = new List<CapnpGen.MotionObject>
+    {
+        new()
+        {
+            Name = "obj",
+            Position = new CapnpGen.Vector3 { X = 1.5f, Y = 0.25f, Z = -3.75f },
+            Orientation = new CapnpGen.Quaternion { X = 0, Y = 0, Z = 0, W = 1 },
+        },
+    },
+};
 Emit("motion-pose", "motion",
     "Pose core only: position + identity quaternion",
     FrameType.Motion,
-    new CapnpGen.MotionFrame
-    {
-        Timestamp = 1.25,
-        Objects = new List<CapnpGen.MotionObject>
-        {
-            new()
-            {
-                Name = "obj",
-                Position = new CapnpGen.Vector3 { X = 1.5f, Y = 0.25f, Z = -3.75f },
-                Orientation = new CapnpGen.Quaternion { X = 0, Y = 0, Z = 0, W = 1 },
-            },
-        },
-    },
+    mb => motionPose.serialize(mb.BuildRoot<CapnpGen.MotionFrame.WRITER>()),
     new
     {
         timestamp = 1.25,
@@ -153,28 +149,29 @@ Emit("motion-pose", "motion",
     });
 
 // ---- vector 4: motion with channel values ----------------------------
-Emit("motion-channels", "motion",
-    "Pose + channel values: numbers and a boolean keyed by discovery ids",
-    FrameType.Motion,
-    new CapnpGen.MotionFrame
+var motionChannels = new CapnpGen.MotionFrame
+{
+    Timestamp = 2.5,
+    Objects = new List<CapnpGen.MotionObject>
     {
-        Timestamp = 2.5,
-        Objects = new List<CapnpGen.MotionObject>
+        new()
         {
-            new()
+            Name = "demo_car",
+            Position = new CapnpGen.Vector3 { X = -2f, Y = 0.5f, Z = 3f },
+            Orientation = new CapnpGen.Quaternion { X = 0, Y = 1, Z = 0, W = 0 },
+            Channels = new List<CapnpGen.ChannelValue>
             {
-                Name = "demo_car",
-                Position = new CapnpGen.Vector3 { X = -2f, Y = 0.5f, Z = 3f },
-                Orientation = new CapnpGen.Quaternion { X = 0, Y = 1, Z = 0, W = 0 },
-                Channels = new List<CapnpGen.ChannelValue>
-                {
-                    new() { Id = 0, Number = 3250.5f },
-                    new() { Id = 1, Number = 8f },
-                    new() { Id = 2, Boolean = true },
-                },
+                new() { Id = 0, Number = 3250.5f },
+                new() { Id = 1, Number = 8f },
+                new() { Id = 2, Boolean = true },
             },
         },
     },
+};
+Emit("motion-channels", "motion",
+    "Pose + channel values: numbers and a boolean keyed by discovery ids",
+    FrameType.Motion,
+    mb => motionChannels.serialize(mb.BuildRoot<CapnpGen.MotionFrame.WRITER>()),
     new
     {
         timestamp = 2.5,
@@ -190,28 +187,29 @@ Emit("motion-channels", "motion",
     });
 
 // ---- vector 5: motion, two objects -----------------------------------
+var motionMulti = new CapnpGen.MotionFrame
+{
+    Timestamp = 3.75,
+    Objects = new List<CapnpGen.MotionObject>
+    {
+        new()
+        {
+            Name = "player_car",
+            Position = new CapnpGen.Vector3 { X = 1, Y = 0, Z = 0 },
+            Orientation = new CapnpGen.Quaternion { W = 1 },
+        },
+        new()
+        {
+            Name = "wingman",
+            Position = new CapnpGen.Vector3 { X = -1, Y = 0.5f, Z = 2.5f },
+            Orientation = new CapnpGen.Quaternion { X = 0, Y = 1, Z = 0, W = 0 },
+        },
+    },
+};
 Emit("motion-multi", "motion",
     "Primary object first, second object after (multi-car grids)",
     FrameType.Motion,
-    new CapnpGen.MotionFrame
-    {
-        Timestamp = 3.75,
-        Objects = new List<CapnpGen.MotionObject>
-        {
-            new()
-            {
-                Name = "player_car",
-                Position = new CapnpGen.Vector3 { X = 1, Y = 0, Z = 0 },
-                Orientation = new CapnpGen.Quaternion { W = 1 },
-            },
-            new()
-            {
-                Name = "wingman",
-                Position = new CapnpGen.Vector3 { X = -1, Y = 0.5f, Z = 2.5f },
-                Orientation = new CapnpGen.Quaternion { X = 0, Y = 1, Z = 0, W = 0 },
-            },
-        },
-    },
+    mb => motionMulti.serialize(mb.BuildRoot<CapnpGen.MotionFrame.WRITER>()),
     new
     {
         timestamp = 3.75,
@@ -225,22 +223,23 @@ Emit("motion-multi", "motion",
     });
 
 // ---- vector 6: event frame -------------------------------------------
+var eventImpact = new CapnpGen.EventFrame
+{
+    Timestamp = 0.125,
+    Events = new List<CapnpGen.Event>
+    {
+        new()
+        {
+            Id = 7, Name = "body.impact", Intensity = 0.75f, Duration = 0.25f,
+            Direction = new CapnpGen.Vector3 { X = -1, Y = 0, Z = 0 },
+            Object = "",
+        },
+    },
+};
 Emit("event-impact", "event",
     "One body.impact stimulus with direction, intensity and duration",
     FrameType.Event,
-    new CapnpGen.EventFrame
-    {
-        Timestamp = 0.125,
-        Events = new List<CapnpGen.Event>
-        {
-            new()
-            {
-                Id = 7, Name = "body.impact", Intensity = 0.75f, Duration = 0.25f,
-                Direction = new CapnpGen.Vector3 { X = -1, Y = 0, Z = 0 },
-                Object = "",
-            },
-        },
-    },
+    mb => eventImpact.serialize(mb.BuildRoot<CapnpGen.EventFrame.WRITER>()),
     new
     {
         timestamp = 0.125,

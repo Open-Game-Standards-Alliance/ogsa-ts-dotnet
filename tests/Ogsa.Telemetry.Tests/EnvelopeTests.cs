@@ -47,4 +47,19 @@ public class EnvelopeTests
         Assert.False(Envelope.TryUnwrap(new byte[7], out _, out _));
         Assert.False(Envelope.TryUnwrap(Array.Empty<byte>(), out _, out _));
     }
+
+    [Fact]
+    public void EncodeDatagram_Matches_Wrap_Of_EncodeMessage()
+    {
+        var mb = Capnp.MessageBuilder.Create(512);
+        new CapnpGen.EventFrame
+        {
+            Timestamp = 1.0,
+            Events = new List<CapnpGen.Event>(),
+        }.serialize(mb.BuildRoot<CapnpGen.EventFrame.WRITER>());
+
+        var combined = Envelope.EncodeDatagram(FrameType.Event, mb.Frame.Segments);
+        var separate = Envelope.Wrap(FrameType.Event, Envelope.EncodeMessage(mb));
+        Assert.Equal(separate, combined);
+    }
 }

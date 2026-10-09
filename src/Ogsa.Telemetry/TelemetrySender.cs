@@ -27,7 +27,7 @@ public sealed class TelemetrySender : IDisposable
     }
 
     public void Send(FrameType type, Capnp.MessageBuilder message) =>
-        _socket.SendTo(Envelope.Wrap(type, Envelope.EncodeMessage(message)), _endpoint);
+        _socket.SendTo(Envelope.EncodeDatagram(type, message.Frame.Segments), _endpoint);
 
     public void Dispose() => _socket.Dispose();
 }
