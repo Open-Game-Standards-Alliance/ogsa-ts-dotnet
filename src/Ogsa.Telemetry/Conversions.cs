@@ -50,9 +50,11 @@ public static class Conversions
         (Unit.RevPerSecond, Unit.Rpm) => 60.0,
         // acceleration
         (Unit.GForce, Unit.MetrePerSecondSquared) => 9.80665,
+        (Unit.FootPerSecondSquared, Unit.MetrePerSecondSquared) => 0.3048,
         // pressure
         (Unit.Bar, Unit.Pascal) => 1e5,
         (Unit.Psi, Unit.Pascal) => 6894.757293168361,
+        (Unit.Kilopascal, Unit.Pascal) => 1000.0,
         // mass
         (Unit.Gram, Unit.Kilogram) => 1e-3,
         // ratio

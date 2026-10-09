@@ -42,10 +42,12 @@ public enum Unit
     MilePerHour,            // mph
     Foot,                   // ft
     FootPerSecond,          // ft/s
+    FootPerSecondSquared,   // ft/s^2
     Knot,                   // kn
     GForce,                 // g
     Bar,                    // bar
     Psi,                    // psi
+    Kilopascal,             // kPa
     Fahrenheit,             // degF
     Percent,                // %
     Gram,                   // g
@@ -83,8 +85,9 @@ public static class UnitInfo
     public static bool IsTargetUnit(this Unit unit) => unit switch
     {
         Unit.Degree or Unit.DegreePerSecond or Unit.KilometrePerHour
-            or Unit.MilePerHour or Unit.Foot or Unit.FootPerSecond or Unit.Knot
-            or Unit.GForce or Unit.Bar or Unit.Psi or Unit.Fahrenheit
+            or Unit.MilePerHour or Unit.Foot or Unit.FootPerSecond
+            or Unit.FootPerSecondSquared or Unit.Knot or Unit.GForce
+            or Unit.Bar or Unit.Psi or Unit.Kilopascal or Unit.Fahrenheit
             or Unit.Percent or Unit.Gram or Unit.RevPerSecond => false,
         _ => true,
     };

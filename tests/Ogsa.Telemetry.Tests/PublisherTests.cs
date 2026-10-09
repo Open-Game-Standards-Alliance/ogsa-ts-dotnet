@@ -14,8 +14,10 @@ public class ConversionsTests
     [InlineData(1.0, Unit.Psi, Unit.Pascal, 6894.757293168361)]
     [InlineData(1.0, Unit.Bar, Unit.Pascal, 1e5)]
     [InlineData(1.0, Unit.GForce, Unit.MetrePerSecondSquared, 9.80665)]
+    [InlineData(1.0, Unit.FootPerSecondSquared, Unit.MetrePerSecondSquared, 0.3048)]
     [InlineData(2.0, Unit.RevPerSecond, Unit.Rpm, 120.0)]
     [InlineData(50.0, Unit.Percent, Unit.Scalar, 0.5)]
+    [InlineData(101.325, Unit.Kilopascal, Unit.Pascal, 101325.0)]
     public void Factors_Convert_Source_To_Target(double value, Unit source,
                                                  Unit target, double expected)
     {
@@ -53,6 +55,8 @@ public class ConversionsTests
     {
         Assert.False(Unit.KilometrePerHour.IsTargetUnit());
         Assert.False(Unit.Psi.IsTargetUnit());
+        Assert.False(Unit.FootPerSecondSquared.IsTargetUnit());
+        Assert.False(Unit.Kilopascal.IsTargetUnit());
         Assert.True(Unit.MetrePerSecond.IsTargetUnit());
         Assert.True(Unit.Rpm.IsTargetUnit());
     }
