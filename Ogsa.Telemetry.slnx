@@ -3,6 +3,7 @@
     <Project Path="src/Ogsa.Telemetry/Ogsa.Telemetry.csproj" />
     <Project Path="src/TelemetryDemo/TelemetryDemo.csproj" />
     <Project Path="src/TelemetryReceive/TelemetryReceive.csproj" />
+    <Project Path="src/ConformanceGen/ConformanceGen.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Ogsa.Telemetry.Tests/Ogsa.Telemetry.Tests.csproj" />
