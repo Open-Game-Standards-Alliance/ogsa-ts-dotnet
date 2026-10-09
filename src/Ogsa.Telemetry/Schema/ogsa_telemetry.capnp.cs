@@ -1,3 +1,4 @@
+#pragma warning disable 8600,8601,8602,8603,8604,8618,8619,8625,8629,8632
 using Capnp;
 using Capnp.Rpc;
 using System;
@@ -4056,3 +4057,4 @@ namespace CapnpGen
         }
     }
 }
+#pragma warning restore 8600,8601,8602,8603,8604,8618,8619,8625,8629,8632
