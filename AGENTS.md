@@ -1,7 +1,7 @@
 # lts-dotnet working conventions
 
 - Schema is vendored at `capnp/open_motion_telemetry.capnp` from the
-  Local-Telemetry-Standard repo (single source of truth lives there).
+  OGSA-Telemetry-Standard repo (single source of truth lives there).
   After editing the schema there, copy it here and run `capnp/build.sh`
   to regenerate `src/Lts/Schema/*.cs` (generated code is committed).
 - Product docs describe current state only; history lives in the

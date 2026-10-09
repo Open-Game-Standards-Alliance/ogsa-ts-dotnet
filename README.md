@@ -1,6 +1,6 @@
 # lts-dotnet
 
-.NET reference implementation of the [OGSA Telemetry Standard (OGSA-TS)](../Local-Telemetry-Standard)
+.NET reference implementation of the [OGSA Telemetry Standard (OGSA-TS)](../OGSA-Telemetry-Standard)
 — a two-layer, UDP-multicast motion telemetry protocol for motion platforms,
 haptics, and cueing systems. Loopback-testable on any single machine
 (macOS, Linux, Windows); the same code is the starting point for Unity
@@ -49,7 +49,7 @@ liveness rules receivers should apply.
 ## Regenerating bindings after a schema change
 
 ```bash
-cp ../Local-Telemetry-Standard/open_motion_telemetry.capnp capnp/
+cp ../OGSA-Telemetry-Standard/open_motion_telemetry.capnp capnp/
 capnp/build.sh
 ```
 
