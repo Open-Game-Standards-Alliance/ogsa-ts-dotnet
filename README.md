@@ -20,6 +20,7 @@ the standard's evolution rules (unknown fields/enums/frame types skipped).
 | `src/Ogsa.Telemetry/Schema` | Generated bindings (`capnp/build.sh` regenerates) |
 | `src/TelemetryDemo` | Demo sender: one car, discovery every 2 s, ~60 Hz motion |
 | `src/TelemetryReceive` | Reference receiver with conformance checks |
+| `src/ConformanceGen` | Deterministic conformance-corpus generator (writes to the standard repo) |
 | `tests/Ogsa.Telemetry.Tests` | xunit: envelope codec, capnp roundtrip, UDP multicast loopback |
 
 ## Build & test
