@@ -1,4 +1,8 @@
-namespace Ogsa.Telemetry;
+using System;
+using System.Collections.Generic;
+
+namespace Ogsa.Telemetry
+{
 
 /// <summary>Frame type byte in the OMT1 envelope (see implementation-udp.md).</summary>
 public enum FrameType : byte
@@ -37,7 +41,9 @@ public static class Envelope
         if (datagram.Length < HeaderSize) return false;
         if (!datagram.Slice(0, 4).SequenceEqual(Magic)) return false;
         type = (FrameType)datagram[4];
-        if (!Enum.IsDefined(type)) return false;
+        // netstandard2.1-safe overload (generic Enum.IsDefined<T> is .NET 5+);
+        // boxing is fine here — receive path, once per datagram
+        if (!Enum.IsDefined(typeof(FrameType), type)) return false;
         capnpMessage = new ReadOnlyMemory<byte>(datagram.ToArray(), HeaderSize, datagram.Length - HeaderSize);
         return true;
     }
@@ -99,4 +105,5 @@ public static class Envelope
         }
         return new Capnp.WireFrame(segments);
     }
+}
 }

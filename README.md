@@ -16,7 +16,7 @@ the standard's evolution rules (unknown fields/enums/frame types skipped).
 
 | Path | Contents |
 |---|---|
-| `src/Ogsa.Telemetry` | Library: `Envelope` (OMT1 header + Cap'n Proto message codec), `TelemetrySender`, `TelemetryReceiver` |
+| `src/Ogsa.Telemetry` | Library: `Envelope` (OMT1 header + Cap'n Proto message codec), `TelemetrySender`, `TelemetryReceiver`, `TelemetryPublisher` (declare/bind/push wiring), `Unit` + `Conversions` (bind-time unit massaging) |
 | `src/Ogsa.Telemetry/Schema` | Generated bindings (`capnp/build.sh` regenerates) |
 | `src/TelemetryDemo` | Demo sender: one car, discovery every 2 s, ~60 Hz motion |
 | `src/TelemetryReceive` | Reference receiver with conformance checks |
@@ -28,6 +28,23 @@ the standard's evolution rules (unknown fields/enums/frame types skipped).
 dotnet build
 dotnet test
 ```
+
+## Multi-target (Unity/Godot compat)
+
+`Ogsa.Telemetry` targets `netstandard2.1;net10.0` at `LangVersion 9.0`
+(Unity's compiler ceiling), no implicit usings — the library source is the
+vendored core for engine packages and must compile identically in every
+host. Console projects (`TelemetryDemo`, `TelemetryReceive`) stay net10.0.
+
+## Publishing API (engine-agnostic)
+
+`TelemetryPublisher` is the two-phase wiring layer the engine plugins wrap:
+declare the object, wheels, and channels (name + required target unit) —
+that becomes the DiscoveryFrame; then bind getters (pull) or push values
+per tick — they ride MotionFrame/EventFrame. Bind-time source units
+(`Unit.KilometrePerHour`, `Unit.Degree`, `Unit.Psi`, …) convert with
+precomputed factors (`Conversions`); mismatches throw at bind, not on the
+wire. See `tests/Ogsa.Telemetry.Tests/PublisherTests.cs` for the pattern.
 
 ## Loopback demo
 
