@@ -1,0 +1,81 @@
+name: ci
+# Sibling repos are checked out from the public GitHub org — update ORG
+# if the account name differs from the workspace layout.
+on: [push, pull_request]
+
+env:
+  ORG: Open-Game-Standards-Alliance
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Build (both TFMs)
+        run: dotnet build src/Ogsa.Telemetry/Ogsa.Telemetry.csproj --nologo
+      - name: Test
+        run: dotnet test --nologo
+
+  corpus-determinism:
+    # Regenerate the conformance corpus; it must be byte-identical to the
+    # standard repo's committed corpus unless a wire change is deliberate.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.ORG }}/OGSA-Telemetry-Standard
+          path: OGSA-Telemetry-Standard
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Regenerate corpus
+        run: dotnet run --project src/ConformanceGen -- /tmp/corpus --nologo
+      - name: Byte-compare against the standard repo
+        run: diff -r -x README.md -x validate.py /tmp/corpus OGSA-Telemetry-Standard/conformance
+        # (README.md and validate.py in the corpus dir are hand-written, not generated)
+
+  core-drift:
+    # The vendored cores in the engine repos must stay byte-identical to
+    # this repo's src/Ogsa.Telemetry (the sync-core.sh contract).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.ORG }}/ogsa-ts-godot
+          path: ogsa-ts-godot
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.ORG }}/ogsa-ts-unity
+          path: ogsa-ts-unity
+      - name: Godot core drift
+        run: diff -r -x '*.csproj' -x obj -x bin
+              src/Ogsa.Telemetry ogsa-ts-godot/addon/ogsa_telemetry/Core
+      - name: Unity core drift
+        run: diff -r -x '*.csproj' -x obj -x bin -x '*.meta' -x '*.asmdef' -x ThirdParty
+              src/Ogsa.Telemetry ogsa-ts-unity/Runtime/Core
+        # (.meta/asmdef/ThirdParty are Unity packaging sidecars, not vendored source)
+
+  lockstep:
+    # The bind-path conversion tables must be identical across the C#
+    # core, UE SourceFactor, and the standard's IMPLEMENTING.md table.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.ORG }}/ogsa-ts-unreal
+          path: ogsa-ts-unreal
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.ORG }}/OGSA-Telemetry-Standard
+          path: OGSA-Telemetry-Standard
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: python3 tools/lockstep.py
+            --dotnet . --unreal ogsa-ts-unreal --standard OGSA-Telemetry-Standard
