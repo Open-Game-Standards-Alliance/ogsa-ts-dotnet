@@ -47,9 +47,15 @@ receiver.MotionReceived += m =>
     float norm = MathF.Sqrt(q.X * q.X + q.Y * q.Y + q.Z * q.Z + q.W * q.W);
     if (MathF.Abs(norm - 1f) > 1e-3f) Warn($"quaternion norm {norm:F4} != 1 on '{primary.Name}'");
     if (motionSeen % 180 == 0)
+    {
+        var vals = string.Join(" ", primary.Channels.Select(c =>
+            c.which == CapnpGen.ChannelValue.WHICH.Boolean
+                ? $"{c.Id}={c.Boolean}"
+                : $"{c.Id}={c.Number:F2}"));
         Console.WriteLine($"Motion: t={m.Timestamp:F2}s '{primary.Name}' " +
                           $"pos=({primary.Position.X:F2},{primary.Position.Y:F2},{primary.Position.Z:F2}) " +
-                          $"|q|={norm:F3}");
+                          $"|q|={norm:F3}{(vals.Length > 0 ? " " + vals : "")}");
+    }
     motionSeen++;
 };
 
