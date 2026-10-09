@@ -18,10 +18,16 @@ public sealed class TelemetryReceiver : IDisposable
     readonly Socket _socket;
     readonly CancellationTokenSource _cts = new();
     Task? _loop;
+    bool _disposed;
 
     public event Action<CapnpGen.DiscoveryFrame.READER>? DiscoveryReceived;
     public event Action<CapnpGen.MotionFrame.READER>? MotionReceived;
     public event Action<CapnpGen.EventFrame.READER>? EventReceived;
+
+    /// <summary>Completes when the receive loop has exited — after Dispose,
+    /// or if it ever faults. Dispose observes faults, so a clean shutdown
+    /// completes successfully; hosts may await this.</summary>
+    public Task Completion => _loop ?? Task.CompletedTask;
 
     public long ForeignSkipped { get; private set; }
     public long DecodeErrors { get; private set; }
@@ -80,6 +86,10 @@ public sealed class TelemetryReceiver : IDisposable
             {
                 // transient; keep receiving
             }
+            catch (ObjectDisposedException)
+            {
+                break; // socket closed by Dispose — clean shutdown, don't fault
+            }
         }
     }
 
@@ -91,8 +101,15 @@ public sealed class TelemetryReceiver : IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         _cts.Cancel();
         try { _socket.Close(); } catch (SocketException) { }
+        // Cancel alone doesn't interrupt a pending Poll — the closed socket
+        // does. Drain the loop (it exits immediately) and observe any
+        // residual fault so it never surfaces as an unobserved task
+        // exception; only then dispose the token source.
+        try { _loop?.Wait(TimeSpan.FromSeconds(1)); } catch (AggregateException) { }
         _cts.Dispose();
     }
 }
