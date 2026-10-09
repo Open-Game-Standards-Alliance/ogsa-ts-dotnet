@@ -1,0 +1,176 @@
+using Ogsa.Telemetry;
+using System.Numerics;
+using Capnp;
+using Xunit;
+
+/// <summary>Unit conversion table (bind-path massaging layer).</summary>
+public class ConversionsTests
+{
+    [Theory]
+    [InlineData(72.0, Unit.KilometrePerHour, Unit.MetrePerSecond, 20.0)]
+    [InlineData(1.0, Unit.MilePerHour, Unit.MetrePerSecond, 0.44704)]
+    [InlineData(1.0, Unit.Knot, Unit.MetrePerSecond, 1852.0 / 3600.0)]
+    [InlineData(180.0, Unit.Degree, Unit.Radian, System.Math.PI)]
+    [InlineData(1.0, Unit.Psi, Unit.Pascal, 6894.757293168361)]
+    [InlineData(1.0, Unit.Bar, Unit.Pascal, 1e5)]
+    [InlineData(1.0, Unit.GForce, Unit.MetrePerSecondSquared, 9.80665)]
+    [InlineData(2.0, Unit.RevPerSecond, Unit.Rpm, 120.0)]
+    [InlineData(50.0, Unit.Percent, Unit.Scalar, 0.5)]
+    public void Factors_Convert_Source_To_Target(double value, Unit source,
+                                                 Unit target, double expected)
+    {
+        var convert = Conversions.TryGetConverter(source, target);
+        Assert.NotNull(convert);
+        Assert.Equal(expected, convert!(value), 9);
+    }
+
+    [Fact]
+    public void Fahrenheit_To_Celsius_Has_Offset()
+    {
+        var convert = Conversions.TryGetConverter(Unit.Fahrenheit, Unit.Celsius);
+        Assert.NotNull(convert);
+        Assert.Equal(0.0, convert!(32.0), 6);
+        Assert.Equal(100.0, convert(212.0), 6);
+    }
+
+    [Fact]
+    public void Same_Unit_Is_Identity()
+    {
+        var convert = Conversions.TryGetConverter(Unit.Rpm, Unit.Rpm);
+        Assert.NotNull(convert);
+        Assert.Equal(42.0, convert!(42.0));
+    }
+
+    [Fact]
+    public void Incompatible_Units_Return_Null()
+    {
+        Assert.Null(Conversions.TryGetConverter(Unit.KilometrePerHour, Unit.Radian));
+        Assert.Null(Conversions.TryGetConverter(Unit.Psi, Unit.Kelvin));
+    }
+
+    [Fact]
+    public void Source_Only_Units_Cannot_Be_Declared()
+    {
+        Assert.False(Unit.KilometrePerHour.IsTargetUnit());
+        Assert.False(Unit.Psi.IsTargetUnit());
+        Assert.True(Unit.MetrePerSecond.IsTargetUnit());
+        Assert.True(Unit.Rpm.IsTargetUnit());
+    }
+
+    [Fact]
+    public void Wire_Strings_Match_Conventions()
+    {
+        Assert.Equal("rpm", Unit.Rpm.ToWireString());
+        Assert.Equal("m/s", Unit.MetrePerSecond.ToWireString());
+        Assert.Equal("degC", Unit.Celsius.ToWireString());
+        Assert.Equal("Pa", Unit.Pascal.ToWireString());
+        Assert.Equal("Nm", Unit.NewtonMetre.ToWireString());
+        Assert.Equal("", Unit.Scalar.ToWireString());
+    }
+}
+
+/// <summary>Publisher over the real loopback: declarations land in discovery,
+/// bound source units are converted on the wire, push values ride motion.</summary>
+public class PublisherLoopbackTests
+{
+    [Fact]
+    public async Task Publisher_Declares_Converts_And_Sends()
+    {
+        const int port = 41236;
+        using var receiver = new TelemetryReceiver(port: port);
+        var discovery = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var motion = new TaskCompletionSource<CapnpGen.MotionFrame.READER>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var evnt = new TaskCompletionSource<CapnpGen.EventFrame.READER>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        receiver.DiscoveryReceived += d => discovery.TrySetResult(d);
+        receiver.MotionReceived += m =>
+        {
+            if (m.Objects.Count == 1 && m.Objects[0].Channels is { Count: 3 })
+                motion.TrySetResult(m);
+        };
+        receiver.EventReceived += e =>
+        {
+            if (e.Events.Count > 0 && e.Events[0].Name == "body.impact")
+                evnt.TrySetResult(e);
+        };
+        receiver.Start();
+
+        using var sender = new TelemetrySender(port: port);
+        using var pub = new TelemetryPublisher(sender, "publisher-test", motionHz: 60);
+
+        pub.DeclareObject("test_car", "Publisher loopback car");
+        var speed = pub.DeclareChannel("vehicle.speed", Unit.MetrePerSecond,
+                                        "Speed over ground", 0, 100);
+        var rpm = pub.DeclareChannel("engine.rpm", Unit.Rpm,
+                                     "Engine revolutions per minute");
+        var running = pub.DeclareBooleanChannel("engine.running");
+
+        // game code natively measures km/h — bind-time conversion
+        pub.BindChannel(speed, () => 72.0, Unit.KilometrePerHour); // → 20 m/s
+        pub.BindChannelRaw(rpm, () => 3100.0);
+        pub.BindBooleanChannel(running, () => true);
+
+        pub.BindPose(() => new Vector3(1f, 2f, 3f),
+                     () => new Quaternion(0f, 0.70710678118f, 0f, 0.70710678118f));
+
+        double clock = 0;
+        pub.Tick(clock);          // discovery + first motion
+        pub.FireEvent("body.impact", 0.8f, 0.25f);
+        clock += 0.060;
+        pub.Tick(clock);          // event frame send
+
+        var disc = await discovery.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var mot = await motion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var ev = await evnt.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("publisher-test", disc.GameName);
+        var obj = disc.Objects[0];
+        Assert.Equal("test_car", obj.Name);
+        Assert.True(obj.Primary);
+        Assert.Equal(3, obj.Channels.Count);
+        Assert.Equal("vehicle.speed", obj.Channels[0].Name);
+        Assert.Equal("m/s", obj.Channels[0].Unit);
+
+        var m = mot.Objects[0];
+        Assert.Equal("test_car", m.Name);
+        Assert.Equal(1f, m.Position.X, 5);
+        Assert.Equal(2f, m.Position.Y, 5);
+        Assert.Equal(3f, m.Position.Z, 5);
+        Assert.Equal(0f, m.Orientation.X, 5);
+        Assert.Equal(0.70710677f, m.Orientation.Y, 5);
+        Assert.Equal(0f, m.Orientation.Z, 5);
+        Assert.Equal(0.70710677f, m.Orientation.W, 5);
+
+        var values = m.Channels.OrderBy(c => c.Id).ToList();
+        Assert.Equal(20.0, values[0].Number, 4);   // 72 km/h converted → 20 m/s
+        Assert.Equal(3100.0, values[1].Number, 2); // raw bind passes through
+        Assert.True(values[2].Boolean);
+
+        Assert.Equal("body.impact", ev.Events[0].Name);
+        Assert.Equal(0.8f, ev.Events[0].Intensity, 5);
+    }
+
+    [Fact]
+    public void Declarations_Lock_After_First_Tick()
+    {
+        using var sender = new TelemetrySender(port: 41237);
+        using var pub = new TelemetryPublisher(sender, "lock-test");
+        pub.DeclareChannel("engine.rpm", Unit.Rpm);
+        pub.Tick(0.0);
+        Assert.Throws<InvalidOperationException>(
+            () => pub.DeclareChannel("late.channel", Unit.Scalar));
+    }
+
+    [Fact]
+    public void BindChannel_Rejects_Incompatible_Source_Unit()
+    {
+        using var sender = new TelemetrySender(port: 41238);
+        using var pub = new TelemetryPublisher(sender, "unit-guard");
+        var rpm = pub.DeclareChannel("engine.rpm", Unit.Rpm);
+        Assert.Throws<ArgumentException>(
+            () => pub.BindChannel(rpm, () => 20.0, Unit.KilometrePerHour));
+    }
+}

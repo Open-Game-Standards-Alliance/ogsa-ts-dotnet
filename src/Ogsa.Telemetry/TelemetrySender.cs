@@ -1,7 +1,9 @@
+using System;
 using System.Net;
 using System.Net.Sockets;
 
-namespace Ogsa.Telemetry;
+namespace Ogsa.Telemetry
+{
 
 /// <summary>
 /// LTS UDP-multicast sender. Default endpoint: 239.255.17.17:40123, TTL 1
@@ -27,4 +29,5 @@ public sealed class TelemetrySender : IDisposable
         _socket.SendTo(Envelope.Wrap(type, Envelope.EncodeMessage(message)), _endpoint);
 
     public void Dispose() => _socket.Dispose();
+}
 }

@@ -1,7 +1,11 @@
+using System;
+using System.Threading.Tasks;
+using System.Threading;
 using System.Net;
 using System.Net.Sockets;
 
-namespace Ogsa.Telemetry;
+namespace Ogsa.Telemetry
+{
 
 /// <summary>
 /// LTS UDP-multicast receiver. Joins the group and demuxes by frame type.
@@ -90,4 +94,5 @@ public sealed class TelemetryReceiver : IDisposable
         try { _socket.Close(); } catch (SocketException) { }
         _cts.Dispose();
     }
+}
 }
