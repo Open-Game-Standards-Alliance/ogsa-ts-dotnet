@@ -50,13 +50,17 @@ public static class Envelope
     }
 
     /// <summary>Encodes a Cap'n Proto message in standard segment-table
-    /// format (u32 count-1, u32 sizes, pad to word boundary, segments).</summary>
+    /// format. Table = u32 (count-1) + N x u32 sizes, padded to an even
+    /// u32 count (so the table is a whole number of words, NOT a minimum
+    /// of two words — a 1-segment table is exactly 1 word, per canonical
+    /// capnproto; the old 2-word form made canonical readers see a NULL
+    /// root). Segments follow word-aligned.</summary>
     public static byte[] EncodeMessage(IReadOnlyList<Memory<ulong>> segments)
     {
         int n = segments.Count;
         long words = 0;
         for (int i = 0; i < n; i++) words += segments[i].Length;
-        int tableWords = 1 + n + ((1 + n) & 1);
+        int tableWords = (1 + n + ((1 + n) & 1)) / 2;
         var buf = new byte[(tableWords + words) * 8];
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(0), (uint)(n - 1));
         for (int i = 0; i < n; i++)
@@ -83,7 +87,7 @@ public static class Envelope
         uint n1 = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(message.Slice(0, 4));
         int n = (int)n1 + 1;
         if (n < 1 || n > 512) throw new Capnp.DeserializationException("implausible segment count");
-        int tableWords = 1 + n + ((1 + n) & 1);
+        int tableWords = (1 + n + ((1 + n) & 1)) / 2; // canonical: even u32 count
         if (message.Length < tableWords * 8) throw new Capnp.DeserializationException("truncated segment table");
         long words = 0;
         for (int i = 0; i < n; i++)
