@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Ogsa.Telemetry/Ogsa.Telemetry.csproj" />
+    <Project Path="src/TelemetryDemo/TelemetryDemo.csproj" />
+    <Project Path="src/TelemetryReceive/TelemetryReceive.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ogsa.Telemetry.Tests/Ogsa.Telemetry.Tests.csproj" />
+  </Folder>
+</Solution>

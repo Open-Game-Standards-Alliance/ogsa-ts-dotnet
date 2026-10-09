@@ -1,15 +1,15 @@
-# lts-dotnet working conventions
+# ogsa-ts-dotnet working conventions
 
 - Schema is vendored at `capnp/open_motion_telemetry.capnp` from the
   OGSA-Telemetry-Standard repo (single source of truth lives there).
   After editing the schema there, copy it here and run `capnp/build.sh`
-  to regenerate `src/Lts/Schema/*.cs` (generated code is committed).
+  to regenerate `src/Ogsa.Telemetry/Schema/*.cs` (generated code is committed).
 - Product docs describe current state only; history lives in the
   Open-Game-Standards-Alliance knowledge base.
 - Reference `Capnp.Net.Runtime` (CapnpC #); generated code stays under
   `CapnpGen` and is not hand-edited.
 - Conformance checks a receiver should enforce live in
-  `src/LtsReceive/Program.cs` (magic, schemaVersion, quaternion norm,
+  `src/TelemetryReceive/Program.cs` (magic, schemaVersion, quaternion norm,
   primary object) — keep that file the canonical example.
 
 ## Sandbox notes (agent environment)

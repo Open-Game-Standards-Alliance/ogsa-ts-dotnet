@@ -1,10 +1,10 @@
-using Lts;
+using Ogsa.Telemetry;
 using CapnpGen;
 
 // Reference receiver: joins the multicast group, prints discovery once and
 // motion throttled, and runs conformance checks on every frame.
 
-using var receiver = new LtsReceiver();
+using var receiver = new TelemetryReceiver();
 var printedDiscovery = false;
 long motionSeen = 0;
 long violations = 0;
@@ -58,7 +58,7 @@ string DescribeRange(ChannelDescriptor.READER ch) =>
 void Warn(string msg) { violations++; Console.WriteLine($"  [warn] {msg}"); }
 
 receiver.Start();
-Console.WriteLine("LtsReceive: listening on 239.255.17.17:40123 (Ctrl-C to stop)");
+Console.WriteLine("TelemetryReceive: listening on 239.255.17.17:40123 (Ctrl-C to stop)");
 while (!printedDiscovery || motionSeen < 5 || seenEventIds.Count == 0)
     await Task.Delay(100);
 Console.WriteLine($"Summary: discoverySeen={printedDiscovery} motionFrames={motionSeen} " +

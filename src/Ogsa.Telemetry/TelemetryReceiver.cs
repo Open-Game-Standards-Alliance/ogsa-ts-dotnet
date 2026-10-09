@@ -1,14 +1,14 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace Lts;
+namespace Ogsa.Telemetry;
 
 /// <summary>
 /// LTS UDP-multicast receiver. Joins the group and demuxes by frame type.
 /// Foreign packets (bad magic) and unknown frame types are skipped silently
 /// per the evolution rules; decode failures never kill the receive loop.
 /// </summary>
-public sealed class LtsReceiver : IDisposable
+public sealed class TelemetryReceiver : IDisposable
 {
     readonly Socket _socket;
     readonly CancellationTokenSource _cts = new();
@@ -21,7 +21,7 @@ public sealed class LtsReceiver : IDisposable
     public long ForeignSkipped { get; private set; }
     public long DecodeErrors { get; private set; }
 
-    public LtsReceiver(string group = "239.255.17.17", int port = 40123)
+    public TelemetryReceiver(string group = "239.255.17.17", int port = 40123)
     {
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);

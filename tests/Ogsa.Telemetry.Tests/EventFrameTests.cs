@@ -1,4 +1,4 @@
-using Lts;
+using Ogsa.Telemetry;
 using Capnp;
 using Xunit;
 
