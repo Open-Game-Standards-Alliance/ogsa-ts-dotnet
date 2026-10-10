@@ -6,6 +6,8 @@ haptics, and cueing systems. Loopback-testable on any single machine
 (macOS, Linux, Windows); the same code is the starting point for Unity
 integrations and Windows-based receivers.
 
+Community & support: [Discord](https://discord.gg/tseF4Q6U99)
+
 Status: **bootstrap** — envelope, multicast transport, generated Cap'n Proto
 bindings, a demo sender, a reference receiver, and a passing loopback test
 suite. The schema layer is generated from the standard's schema
