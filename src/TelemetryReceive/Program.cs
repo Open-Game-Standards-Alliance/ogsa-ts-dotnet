@@ -58,11 +58,49 @@ receiver.MotionReceived += m =>
             c.which == CapnpGen.ChannelValue.WHICH.Boolean
                 ? $"{c.Id}={c.Boolean}"
                 : $"{c.Id}={c.Number:F2}"));
+        var (yaw, pitch, roll) = ToEulerDegrees(q);
         Console.WriteLine($"Motion: t={m.Timestamp:F2}s '{primary.Name}' " +
                           $"pos=({primary.Position.X:F2},{primary.Position.Y:F2},{primary.Position.Z:F2}) " +
-                          $"|q|={norm:F3}{(vals.Length > 0 ? " " + vals : "")}");
+                          $"|q|={norm:F3} yaw={Signed(yaw)}deg pitch={Signed(pitch)}deg roll={Signed(roll)}deg" +
+                          (vals.Length > 0 ? " " + vals : ""));
     }
 };
+
+// Orientation readout in the OGSA-TS frame (left-handed: Z forward, X
+// right, Y up). ZYX Tait-Bryan angles from the rotated basis vectors:
+// forward f = q·(0,0,1), right r = q·(1,0,0) → yaw = atan2(f.X, f.Z)
+// (0 = +Z, turning right positive), pitch = asin(f.Y) (nose up
+// positive), roll = asin(-r.Y/cos(pitch)) (right side down positive;
+// exact for r.Y = -sin(roll)·cos(pitch), degenerate only at ±90° pitch).
+static (float yaw, float pitch, float roll) ToEulerDegrees(
+    CapnpGen.Quaternion.READER q)
+{
+    var f = RotateBy(q, 0, 0, 1);
+    var r = RotateBy(q, 1, 0, 0);
+    const float rad2deg = 180f / MathF.PI;
+    float yaw = MathF.Atan2(f.x, f.z) * rad2deg;
+    float pitch = MathF.Asin(Clamp1(f.y)) * rad2deg;
+    float cosPitch = MathF.Cos(pitch / rad2deg);
+    float roll = MathF.Abs(cosPitch) < 1e-3f ? 0f
+        : MathF.Asin(Clamp1(-r.y / cosPitch)) * rad2deg;
+    return (yaw, pitch, roll);
+}
+
+static float Clamp1(float v) => v < -1f ? -1f : v > 1f ? 1f : v;
+
+// v' = q v q⁻¹ for a unit quaternion (t = 2·(q_vec × v))
+static (float x, float y, float z) RotateBy(
+    CapnpGen.Quaternion.READER q, float x, float y, float z)
+{
+    float tx = 2f * (q.Y * z - q.Z * y);
+    float ty = 2f * (q.Z * x - q.X * z);
+    float tz = 2f * (q.X * y - q.Y * x);
+    return (x + q.W * tx + (q.Y * tz - q.Z * ty),
+            y + q.W * ty + (q.Z * tx - q.X * tz),
+            z + q.W * tz + (q.X * ty - q.Y * tx));
+}
+
+static string Signed(float v) => (v >= 0 ? "+" : "") + (v + 0f).ToString("F1"); // +0f folds -0.0
 
 string DescribeRange(ChannelDescriptor.READER ch) =>
     ch.which == ChannelDescriptor.WHICH.Range ? $"{ch.Range.Min}..{ch.Range.Max}" : "-";
