@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
     <!-- C# 9 = Unity's compiler ceiling; library source is vendored into
          engine packages, so it must compile under C# 9 everywhere. -->
     <LangVersion>9.0</LangVersion>
@@ -10,6 +10,10 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Capnp.Net.Runtime" Version="1.3.118" />
+    <!-- spans/MemoryMarshal on netstandard2.0 (BepInEx 5 Mono plugins run on
+         .NET Framework, where netstandard2.1 assemblies cannot load) -->
+    <PackageReference Include="System.Memory" Version="4.5.5"
+                      Condition=" '$(TargetFramework)' == 'netstandard2.0' " />
   </ItemGroup>
 
 </Project>
