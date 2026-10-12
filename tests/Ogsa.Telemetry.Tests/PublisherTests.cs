@@ -218,4 +218,41 @@ public class PublisherLoopbackTests
         Assert.Throws<ArgumentException>(
             () => pub.BindChannel(rpm, () => 20.0, Unit.KilometrePerHour));
     }
+
+    [Fact]
+    public async Task SetObjectTypeLabel_ReSends_Discovery_With_New_Label()
+    {
+        // Runtime-tracked senders (injected mods) surface what they are
+        // tracking via typeLabel while the object NAME stays stable —
+        // changing the label must re-send discovery before the interval.
+        const int port = 41242;
+        using var receiver = new TelemetryReceiver(port: port);
+        var first = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        receiver.DiscoveryReceived += d =>
+        {
+            if (!first.Task.IsCompleted) first.TrySetResult(d);
+            else if (d.Objects[0].TypeLabel == "BP_Sportscar_C") second.TrySetResult(d);
+        };
+        receiver.Start();
+
+        using var sender = new TelemetrySender(port: port);
+        using var pub = new TelemetryPublisher(sender, "label-test",
+                                              motionHz: 60, discoveryIntervalSeconds: 3600);
+        pub.DeclareObject("player"); // stable role name, no label yet
+        pub.Tick(0.0);                // discovery sent; interval is 1 h
+
+        var d1 = await first.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("player", d1.Objects[0].Name);
+        Assert.Equal("", d1.Objects[0].TypeLabel.ToString());
+
+        pub.SetObjectTypeLabel("BP_Sportscar_C");
+        pub.Tick(0.017);              // far inside the 1 h interval
+
+        var d2 = await second.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("player", d2.Objects[0].Name); // name unchanged
+        Assert.Equal("BP_Sportscar_C", d2.Objects[0].TypeLabel.ToString());
+    }
 }

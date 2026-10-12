@@ -20,8 +20,9 @@ receiver.DiscoveryReceived += d =>
                       $"objects={d.Objects.Count} medium={d.Environment.Medium}");
     foreach (var o in d.Objects)
     {
-        Console.WriteLine($"  object '{o.Name}' type={o.Type} primary={o.Primary} " +
-                          $"drivePoints={o.DrivePoints.Count} channels={o.Channels.Count}");
+        Console.WriteLine($"  object '{o.Name}' type={o.Type} typeLabel='{o.TypeLabel}' " +
+                          $"primary={o.Primary} drivePoints={o.DrivePoints.Count} " +
+                          $"channels={o.Channels.Count}");
         foreach (var ch in o.Channels)
             Console.WriteLine($"    channel {ch.Id}: {ch.Name} [{ch.Unit}] range={DescribeRange(ch)}");
     }

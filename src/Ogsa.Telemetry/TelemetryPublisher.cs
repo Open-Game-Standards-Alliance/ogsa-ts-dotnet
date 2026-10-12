@@ -105,6 +105,21 @@ public sealed class TelemetryPublisher : IDisposable
         _objectName = name; _typeLabel = typeLabel;
     }
 
+    /// <summary>Updates the object's display label after declarations
+    /// have locked — for senders that discover what they are tracking at
+    /// runtime (injected mods surfacing the pawn's class name). The object
+    /// NAME stays stable (receivers match discovery/motion by it); the label
+    /// rides the next discovery re-send per the standard's
+    /// re-send-on-change rule.</summary>
+    public void SetObjectTypeLabel(string typeLabel)
+    {
+        if (_typeLabel == typeLabel) return;
+        _typeLabel = typeLabel;
+        if (_discoveryFrame is not null)
+            _discoveryFrame.Objects[0].TypeLabel = typeLabel;
+        _lastDiscovery = double.NegativeInfinity; // re-send at the next tick
+    }
+
     public ChannelHandle DeclareChannel(string name, Unit unit,
                                         string description = "",
                                         double min = double.NaN, double max = double.NaN)
