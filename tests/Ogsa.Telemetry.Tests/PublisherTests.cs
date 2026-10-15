@@ -119,6 +119,9 @@ public class PublisherLoopbackTests
 
         pub.BindPose(() => new Vector3(1f, 2f, 3f),
                      () => new Quaternion(0f, 0.70710678118f, 0f, 0.70710678118f));
+        pub.BindBodyDynamics(() => (
+            new Vector3(0.5f, -9.80665f, 2.0f),          // specific force m/s²
+            new Vector3(0.10f, -0.25f, 0.40f)));          // angular rate rad/s
 
         double clock = 0;
         pub.Tick(clock);          // discovery + first motion
@@ -128,6 +131,11 @@ public class PublisherLoopbackTests
 
         var disc = await discovery.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var mot = await motion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(CapnpGen.MotionObject.WHICH.BodyDynamics, mot.Objects[0].which);
+        Assert.Equal(0.10f, mot.Objects[0].BodyDynamics.AngularVelocity.X, 5);
+        Assert.Equal(-0.25f, mot.Objects[0].BodyDynamics.AngularVelocity.Y, 5);
+        Assert.Equal(0.40f, mot.Objects[0].BodyDynamics.AngularVelocity.Z, 5);
+        Assert.Equal(-9.80665f, mot.Objects[0].BodyDynamics.SpecificForce.Y, 4);
         var ev = await evnt.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal("publisher-test", disc.GameName);
