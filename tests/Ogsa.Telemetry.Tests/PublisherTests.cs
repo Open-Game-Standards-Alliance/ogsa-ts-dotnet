@@ -263,4 +263,43 @@ public class PublisherLoopbackTests
         Assert.Equal("player", d2.Objects[0].Name); // name unchanged
         Assert.Equal("BP_Sportscar_C", d2.Objects[0].TypeLabel.ToString());
     }
+
+    [Fact]
+    public async Task SetEnvironment_Resends_Discovery_With_New_Values()
+    {
+        // per-level conditions (space: no gravity, vacuum) must re-send
+        // discovery before the interval — the schema allows the
+        // environment to be re-sent on change
+        const int port = 41243;
+        using var receiver = new TelemetryReceiver(port: port);
+        var first = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        receiver.DiscoveryReceived += d =>
+        {
+            if (!first.Task.IsCompleted) first.TrySetResult(d);
+            else if (d.Environment.Medium == CapnpGen.ContactMedium.vacuum) second.TrySetResult(d);
+        };
+        receiver.Start();
+
+        using var sender = new TelemetrySender(port: port);
+        using var pub = new TelemetryPublisher(sender, "env-test",
+                                              motionHz: 60, discoveryIntervalSeconds: 3600);
+        pub.DeclareObject("player");
+        pub.Tick(0.0); // discovery sent with defaults
+
+        var d1 = await first.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(9.81f, d1.Environment.Gravity, 4);
+        Assert.Equal(CapnpGen.ContactMedium.asphalt, d1.Environment.Medium);
+
+        pub.SetEnvironment(gravity: 0f, airDensity: 0f, temperature: -270f,
+                           pressure: 0f, medium: CapnpGen.ContactMedium.vacuum);
+        pub.Tick(0.017); // far inside the 1 h interval
+
+        var d2 = await second.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(0f, d2.Environment.Gravity, 5);
+        Assert.Equal(0f, d2.Environment.AirDensity, 5);
+        Assert.Equal(CapnpGen.ContactMedium.vacuum, d2.Environment.Medium);
+    }
 }
