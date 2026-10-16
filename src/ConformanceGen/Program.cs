@@ -25,7 +25,7 @@ static CapnpGen.Environment Env() => new()
 
 var manifest = new
 {
-    corpusVersion = 2,
+    corpusVersion = 3,
     schemaVersion = 1,
     envelope = new { magic = "OMT1", headerBytes = 8 },
     floatRule = "all floats in this corpus are float32-exact; implementations compare exactly",

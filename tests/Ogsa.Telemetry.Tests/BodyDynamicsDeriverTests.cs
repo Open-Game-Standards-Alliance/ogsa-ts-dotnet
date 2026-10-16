@@ -213,11 +213,81 @@ public class BodyDynamicsDeriverTests
                      hasVelocity: true, engineVelocity: new Vector3(0, 0, 1f));
             t += Dt;
         }
-        // teleport 10 m in one tick
-        d.Sample(t, new Vector3(10f, 0f, 10f), Quaternion.Identity);
+        // teleport 10 m in one tick; engine velocity supplied, so the move
+        // it cannot explain is a teleport immediately (single-strike path)
+        d.Sample(t, new Vector3(10f, 0f, 10f), Quaternion.Identity,
+                 hasVelocity: true, engineVelocity: new Vector3(0, 0, 1f));
         AssertNear(G, d.SpecificForce.Y, 1e-4, "sf.y after teleport");
         AssertNear(0, d.SpecificForce.Z, 1e-4, "sf.z after teleport");
         AssertNear(0, d.AngularVelocity.Y, 1e-6, "w.y after teleport");
+    }
+
+    [Fact]
+    public void Fast_mover_with_engine_velocity_accelerates_without_reset()
+    {
+        // flight/space sims: 300 m/s cruise + 15 m/s² sustained thrust. The
+        // old fixed 2.5 m/sample cap (=125 m/s) reset the estimator every
+        // tick, freezing specific force at the static gravity reaction
+        var d = new BodyDynamicsDeriver();
+        double t = 0, v = 300.0;
+        for (int i = 0; i < 120; i++) // 2 s
+        {
+            v += 15.0 * Dt;
+            // physical kinematics: x = v0·t + ½at²
+            d.Sample(t, new Vector3(0, 0, (float)(300.0 * t + 0.5 * 15.0 * t * t)),
+                     Quaternion.Identity,
+                     hasVelocity: true, engineVelocity: new Vector3(0, 0, (float)v));
+            t += Dt;
+        }
+        AssertNear(15.0, d.SpecificForce.Z, 0.5, "sf.z (surge under thrust)");
+        AssertNear(G, d.SpecificForce.Y, 0.5, "sf.y");
+    }
+
+    [Fact]
+    public void Fast_mover_without_engine_velocity_is_not_a_teleport()
+    {
+        // no velocity measurement: 250 m/s (4.2 m/sample) + gentle thrust.
+        // One inconsistent sample is acceleration onset, not a teleport —
+        // the deriver must converge on the real surge, not reset-loop
+        var d = new BodyDynamicsDeriver();
+        double t = 0, v = 250.0;
+        for (int i = 0; i < 150; i++) // 2.5 s: filter converges after the
+        {                            // first-sample strike recovers
+            v += 5.0 * Dt;
+            // physical kinematics: x = v0·t + ½at² (v·t would double the accel)
+            d.Sample(t, new Vector3(0, 0, (float)(250.0 * t + 0.5 * 5.0 * t * t)),
+                     Quaternion.Identity);
+            t += Dt;
+        }
+        AssertNear(5.0, d.SpecificForce.Z, 0.5, "sf.z (surge, no velocity feed)");
+        AssertNear(G, d.SpecificForce.Y, 0.5, "sf.y");
+    }
+
+    [Fact]
+    public void Teleport_without_velocity_resets_on_sustained_inconsistency()
+    {
+        // without a velocity measurement a single weird sample could be
+        // acceleration onset; a teleport is a one-time jump followed by
+        // normal motion, which is inconsistent with the garbage velocity
+        // the jump derived — strike two, reset (one sample late)
+        var d = new BodyDynamicsDeriver();
+        double t = 0;
+        for (int i = 0; i < 30; i++) { d.Sample(t, new Vector3(0, 0, (float)t), Quaternion.Identity); t += Dt; }
+        d.Sample(t, new Vector3(0, 0, (float)t + 50f), Quaternion.Identity); t += Dt; // strike 1: jump
+        Assert.True(d.SpecificForce.Z > 1000f, "sf.z strike1: derived spike, not reset");
+        d.Sample(t, new Vector3(0, 0, (float)t), Quaternion.Identity); // back on the normal path
+        AssertNear(G, d.SpecificForce.Y, 1e-4, "sf.y after teleport");
+        AssertNear(0, d.SpecificForce.Z, 1e-4, "sf.z after teleport");
+        AssertNear(0, d.AngularVelocity.Y, 1e-6, "w.y after teleport");
+    }
+
+    [Fact]
+    public void StoredToC4Rates_maps_stored_components()
+    {
+        var c4 = BodyDynamicsDeriver.StoredToC4Rates(new Vector3(1f, 2f, 3f));
+        Assert.Equal(-1f, c4.X);
+        Assert.Equal(2f, c4.Y);
+        Assert.Equal(-3f, c4.Z);
     }
 
     [Fact]
