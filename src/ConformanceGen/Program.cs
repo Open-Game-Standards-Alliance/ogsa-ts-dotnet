@@ -25,7 +25,7 @@ static CapnpGen.Environment Env() => new()
 
 var manifest = new
 {
-    corpusVersion = 1,
+    corpusVersion = 2,
     schemaVersion = 1,
     envelope = new { magic = "OMT1", headerBytes = 8 },
     floatRule = "all floats in this corpus are float32-exact; implementations compare exactly",
@@ -222,7 +222,48 @@ Emit("motion-multi", "motion",
         },
     });
 
-// ---- vector 6: event frame -------------------------------------------
+// ---- vector 6: motion with body dynamics ----------------------------
+var motionBodyDynamics = new CapnpGen.MotionFrame
+{
+    Timestamp = 4.5,
+    Objects = new List<CapnpGen.MotionObject>
+    {
+        new()
+        {
+            Name = "obj",
+            Position = new CapnpGen.Vector3 { X = 0.5f, Y = 1.25f, Z = -2.5f },
+            Orientation = new CapnpGen.Quaternion { X = 0, Y = 0.5f, Z = 0, W = 0.875f },
+            // accelerometer-style specific force (f = a − g: +1 g on +heave
+            // at rest) and C-4 body angular rates — the motion-cueing pair
+            BodyDynamics = new CapnpGen.BodyDynamics
+            {
+                SpecificForce = new CapnpGen.Vector3
+                    { X = 0.25f, Y = 9.5f, Z = -1.5f },
+                AngularVelocity = new CapnpGen.Vector3
+                    { X = -0.125f, Y = 0.375f, Z = 0.75f },
+            },
+        },
+    },
+};
+Emit("motion-bodydynamics", "motion",
+    "Pose + bodyDynamics union variant: accelerometer-style specific force " +
+    "(+heave gravity reaction at rest) and C-4 body angular velocity",
+    FrameType.Motion,
+    mb => motionBodyDynamics.serialize(mb.BuildRoot<CapnpGen.MotionFrame.WRITER>()),
+    new
+    {
+        timestamp = 4.5,
+        objects = new[] { new { name = "obj",
+            position = new { x = 0.5, y = 1.25, z = -2.5 },
+            orientation = new { x = 0.0, y = 0.5, z = 0.0, w = 0.875 },
+            bodyDynamics = new
+            {
+                specificForce = new { x = 0.25, y = 9.5, z = -1.5 },
+                angularVelocity = new { x = -0.125, y = 0.375, z = 0.75 },
+            } } },
+    });
+
+// ---- vector 7: event frame -------------------------------------------
 var eventImpact = new CapnpGen.EventFrame
 {
     Timestamp = 0.125,

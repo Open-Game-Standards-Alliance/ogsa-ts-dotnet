@@ -121,6 +121,31 @@ public class ConformanceVectorTests
     }
 
     [Fact]
+    public void Motion_BodyDynamics()
+    {
+        var (_, root) = Load("motion-bodydynamics");
+        var m = CapnpGen.MotionFrame.READER.create(root);
+        Assert.Equal(4.5, m.Timestamp);
+        var obj = Assert.Single(m.Objects);
+        Assert.Equal("obj", obj.Name);
+        Assert.Equal(CapnpGen.MotionObject.WHICH.BodyDynamics, obj.which);
+        Assert.Equal(0.5f, obj.Position.X);
+        Assert.Equal(1.25f, obj.Position.Y);
+        Assert.Equal(-2.5f, obj.Position.Z);
+        Assert.Equal(0f, obj.Orientation.X);
+        Assert.Equal(0.5f, obj.Orientation.Y);
+        Assert.Equal(0f, obj.Orientation.Z);
+        Assert.Equal(0.875f, obj.Orientation.W);
+        // accelerometer-style specific force: +heave gravity reaction
+        Assert.Equal(0.25f, obj.BodyDynamics.SpecificForce.X);
+        Assert.Equal(9.5f, obj.BodyDynamics.SpecificForce.Y);
+        Assert.Equal(-1.5f, obj.BodyDynamics.SpecificForce.Z);
+        Assert.Equal(-0.125f, obj.BodyDynamics.AngularVelocity.X);
+        Assert.Equal(0.375f, obj.BodyDynamics.AngularVelocity.Y);
+        Assert.Equal(0.75f, obj.BodyDynamics.AngularVelocity.Z);
+    }
+
+    [Fact]
     public void Event_Impact()
     {
         var (type, root) = Load("event-impact");

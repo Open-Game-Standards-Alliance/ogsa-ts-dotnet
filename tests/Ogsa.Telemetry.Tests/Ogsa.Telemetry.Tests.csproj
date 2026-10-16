@@ -1,5 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- The ProjectReference below is SOURCE-based: the test suite
+       compiles against ../../src/Ogsa.Telemetry directly, including
+       BodyDynamicsDeriver.cs (the pose→dynamics deriver whose semantics
+       these tests pin). -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
