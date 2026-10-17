@@ -10,14 +10,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.ORG }}/OGSA-Telemetry-Standard
           path: OGSA-Telemetry-Standard
         # (ConformanceVectorTests decode the corpus — checked out inside the
         # repo for CI; CorpusDir() probes nested then sibling)
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
       - name: Build (all TFMs)
@@ -30,12 +30,12 @@ jobs:
     # standard repo's committed corpus unless a wire change is deliberate.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.ORG }}/OGSA-Telemetry-Standard
           path: OGSA-Telemetry-Standard
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
       - name: Regenerate corpus
@@ -49,12 +49,12 @@ jobs:
     # this repo's src/Ogsa.Telemetry (the sync-core.sh contract).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.ORG }}/ogsa-ts-godot
           path: ogsa-ts-godot
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.ORG }}/ogsa-ts-unity
           path: ogsa-ts-unity
@@ -71,16 +71,16 @@ jobs:
     # core, UE SourceFactor, and the standard's IMPLEMENTING.md table.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.ORG }}/ogsa-ts-unreal
           path: ogsa-ts-unreal
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.ORG }}/OGSA-Telemetry-Standard
           path: OGSA-Telemetry-Standard
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
       - run: python3 tools/lockstep.py
