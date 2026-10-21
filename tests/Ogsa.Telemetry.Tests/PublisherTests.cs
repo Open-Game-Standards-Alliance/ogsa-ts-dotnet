@@ -1,4 +1,5 @@
 using Ogsa.Telemetry;
+using System.Net;
 using System.Numerics;
 using Capnp;
 using Xunit;
@@ -81,7 +82,7 @@ public class PublisherLoopbackTests
     public async Task Publisher_Declares_Converts_And_Sends()
     {
         const int port = 41236;
-        using var receiver = new TelemetryReceiver(port: port);
+        using var receiver = new TelemetryReceiver(port: port, localInterface: IPAddress.Loopback);
         var discovery = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var motion = new TaskCompletionSource<CapnpGen.MotionFrame.READER>(
@@ -102,7 +103,7 @@ public class PublisherLoopbackTests
         };
         receiver.Start();
 
-        using var sender = new TelemetrySender(port: port);
+        using var sender = new TelemetrySender(port: port, localInterface: IPAddress.Loopback);
         using var pub = new TelemetryPublisher(sender, "publisher-test", motionHz: 60);
 
         pub.DeclareObject("test_car", "Publisher loopback car");
@@ -168,7 +169,7 @@ public class PublisherLoopbackTests
     [Fact]
     public void Declarations_Lock_After_First_Tick()
     {
-        using var sender = new TelemetrySender(port: 41237);
+        using var sender = new TelemetrySender(port: 41237, localInterface: IPAddress.Loopback);
         using var pub = new TelemetryPublisher(sender, "lock-test");
         pub.DeclareChannel("engine.rpm", Unit.Rpm);
         pub.Tick(0.0);
@@ -182,7 +183,7 @@ public class PublisherLoopbackTests
         // The frame object graph is cached after the first tick; pushed and
         // pulled values must still update on every subsequent frame.
         const int port = 41241;
-        using var receiver = new TelemetryReceiver(port: port);
+        using var receiver = new TelemetryReceiver(port: port, localInterface: IPAddress.Loopback);
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         int frames = 0;
         double latestPush = double.NaN, latestPull = double.NaN;
@@ -196,7 +197,7 @@ public class PublisherLoopbackTests
         };
         receiver.Start();
 
-        using var sender = new TelemetrySender(port: port);
+        using var sender = new TelemetrySender(port: port, localInterface: IPAddress.Loopback);
         using var pub = new TelemetryPublisher(sender, "cache-test", motionHz: 60);
         pub.DeclareObject("car");
         var push = pub.DeclareChannel("push.channel", Unit.Scalar);
@@ -220,7 +221,7 @@ public class PublisherLoopbackTests
     [Fact]
     public void BindChannel_Rejects_Incompatible_Source_Unit()
     {
-        using var sender = new TelemetrySender(port: 41238);
+        using var sender = new TelemetrySender(port: 41238, localInterface: IPAddress.Loopback);
         using var pub = new TelemetryPublisher(sender, "unit-guard");
         var rpm = pub.DeclareChannel("engine.rpm", Unit.Rpm);
         Assert.Throws<ArgumentException>(
@@ -234,7 +235,7 @@ public class PublisherLoopbackTests
         // tracking via typeLabel while the object NAME stays stable —
         // changing the label must re-send discovery before the interval.
         const int port = 41242;
-        using var receiver = new TelemetryReceiver(port: port);
+        using var receiver = new TelemetryReceiver(port: port, localInterface: IPAddress.Loopback);
         var first = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var second = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
@@ -246,7 +247,7 @@ public class PublisherLoopbackTests
         };
         receiver.Start();
 
-        using var sender = new TelemetrySender(port: port);
+        using var sender = new TelemetrySender(port: port, localInterface: IPAddress.Loopback);
         using var pub = new TelemetryPublisher(sender, "label-test",
                                               motionHz: 60, discoveryIntervalSeconds: 3600);
         pub.DeclareObject("player"); // stable role name, no label yet
@@ -271,7 +272,7 @@ public class PublisherLoopbackTests
         // discovery before the interval — the schema allows the
         // environment to be re-sent on change
         const int port = 41243;
-        using var receiver = new TelemetryReceiver(port: port);
+        using var receiver = new TelemetryReceiver(port: port, localInterface: IPAddress.Loopback);
         var first = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var second = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
@@ -283,7 +284,7 @@ public class PublisherLoopbackTests
         };
         receiver.Start();
 
-        using var sender = new TelemetrySender(port: port);
+        using var sender = new TelemetrySender(port: port, localInterface: IPAddress.Loopback);
         using var pub = new TelemetryPublisher(sender, "env-test",
                                               motionHz: 60, discoveryIntervalSeconds: 3600);
         pub.DeclareObject("player");
