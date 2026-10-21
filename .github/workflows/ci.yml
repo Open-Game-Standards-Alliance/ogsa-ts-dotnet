@@ -1,13 +1,24 @@
 name: ci
 # Sibling repos are checked out from the public GitHub org — update ORG
 # if the account name differs from the workspace layout.
-on: [push, pull_request]
+#
+# repository_dispatch (type sibling-pushed): fired by ogsa-ts-unity after
+# its own push, since that repo's core-drift job checks this one back —
+# self-heals the push-order race (see core-drift below) without a manual
+# re-run. test/corpus-determinism skip on this trigger; they're this
+# repo's own correctness and unaffected by a sibling's push.
+on:
+  push:
+  pull_request:
+  repository_dispatch:
+    types: [sibling-pushed]
 
 env:
   ORG: Open-Game-Standards-Alliance
 
 jobs:
   test:
+    if: github.event_name != 'repository_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -28,6 +39,7 @@ jobs:
   corpus-determinism:
     # Regenerate the conformance corpus; it must be byte-identical to the
     # standard repo's committed corpus unless a wire change is deliberate.
+    if: github.event_name != 'repository_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -47,7 +59,14 @@ jobs:
   core-drift:
     # The vendored cores in the engine repos must stay byte-identical to
     # this repo's src/Ogsa.Telemetry (the sync-core.sh contract).
+    # Advisory, not blocking: this fetches sibling repos' CURRENT default
+    # branch, so a core change pushed here before its sync lands in
+    # ogsa-ts-godot/ogsa-ts-unity shows up as a transient failure that has
+    # nothing to do with this push's own correctness. Treat a red run here
+    # right after a multi-repo change as a prompt to check the siblings
+    # were pushed, not as a broken build.
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
@@ -69,7 +88,11 @@ jobs:
   lockstep:
     # The bind-path conversion tables must be identical across the C#
     # core, UE SourceFactor, and the standard's IMPLEMENTING.md table.
+    # Advisory, not blocking — same cross-repo push-order race as
+    # core-drift above (fetches ogsa-ts-unreal and the standard repo's
+    # current default branch).
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
@@ -85,3 +108,41 @@ jobs:
           python-version: "3.x"
       - run: python3 tools/lockstep.py
             --dotnet . --unreal ogsa-ts-unreal --standard OGSA-Telemetry-Standard
+
+  notify-unity:
+    # ogsa-ts-unity's own core-drift job checks this repo back — tell it
+    # to recheck now that this push landed, so a failure caused purely by
+    # push-order timing self-heals instead of staying red until someone
+    # notices and re-runs it by hand. Needs CROSS_REPO_DISPATCH_TOKEN (a
+    # fine-grained PAT scoped to just the Open-Game-Standards-Alliance
+    # engine repos, with Contents: Read and write — confirmed by a live
+    # 403 "Resource not accessible by personal access token" from this
+    # endpoint when that permission was missing; GitHub's own docs don't
+    # state it). Skipped entirely (not failed) while that secret is unset.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [test, corpus-determinism]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      # the secrets context can't be read directly in an `if:` (GitHub
+      # blocks it there); gate through this env var instead
+      HAS_DISPATCH_TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN != '' }}
+    steps:
+      - name: Dispatch sibling-pushed to ogsa-ts-unity
+        if: env.HAS_DISPATCH_TOKEN == 'true'
+        env:
+          TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
+        run: |
+          status=$(curl -s -o /tmp/dispatch-response.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ env.ORG }}/ogsa-ts-unity/dispatches" \
+            -d "{\"event_type\":\"sibling-pushed\",\"client_payload\":{\"source\":\"${{ github.repository }}\",\"sha\":\"${{ github.sha }}\"}}")
+          echo "HTTP status: $status"
+          cat /tmp/dispatch-response.json 2>/dev/null || true
+          # the response body is GitHub's own error text, never the token
+          # (which curl never prints) — safe to show in logs for diagnosis
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "dispatch to ogsa-ts-unity failed (see response above)"
+            exit 1
+          fi
