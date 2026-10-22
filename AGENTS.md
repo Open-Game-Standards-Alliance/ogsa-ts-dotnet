@@ -2,12 +2,20 @@
 
 - Schema is vendored at `capnp/ogsa_telemetry.capnp` from the
   OGSA-Telemetry-Standard repo (single source of truth lives there).
-  After editing the schema there, copy it here and run `capnp/build.sh`
-  to regenerate `src/Ogsa.Telemetry/Schema/*.cs` (generated code is committed).
+  After editing the schema there, copy it here and regenerate both sides
+  (generated code is committed): `python capnp/gen_writers.py` →
+  `src/Ogsa.Telemetry/Schema/ogsa_telemetry.writers.cs`, and
+  `capnp/build.sh` → `src/Ogsa.Telemetry.Receiving/Schema/ogsa_telemetry.capnp.cs`.
 - Product docs describe current state only; history lives in the
   Open-Game-Standards-Alliance knowledge base.
-- Reference `Capnp.Net.Runtime` (CapnpC #); generated code stays under
-  `CapnpGen` and is not hand-edited.
+- `src/Ogsa.Telemetry` is the vendored core of the engine plugins and has
+  no package dependencies beyond System.Memory on netstandard2.0: frames
+  are written by the generated writers (`Ogsa.Telemetry.Schema`) over
+  `Wire.cs`, in canonical OGSA encoding. Never add Capnp.Net (or anything
+  reflection-based) to it.
+- Decoding uses `Capnp.Net.Runtime` in `src/Ogsa.Telemetry.Receiving` only;
+  its generated readers stay under `CapnpGen`. Generated code in either
+  project is not hand-edited.
 - Conformance checks a receiver should enforce live in
   `src/TelemetryReceive/Program.cs` (magic, schemaVersion, quaternion norm,
   primary object) — keep that file the canonical example.

@@ -51,15 +51,20 @@ public class EnvelopeTests
     [Fact]
     public void EncodeDatagram_Matches_Wrap_Of_EncodeMessage()
     {
-        var mb = Capnp.MessageBuilder.Create(512);
-        new CapnpGen.EventFrame
-        {
-            Timestamp = 1.0,
-            Events = new List<CapnpGen.Event>(),
-        }.serialize(mb.BuildRoot<CapnpGen.EventFrame.WRITER>());
-
-        var combined = Envelope.EncodeDatagram(FrameType.Event, mb.Frame.Segments);
-        var separate = Envelope.Wrap(FrameType.Event, Envelope.EncodeMessage(mb));
+        ulong[] words = { 0x0000_0001_0000_0000, 0x3FF0_0000_0000_0000 };
+        var combined = Envelope.EncodeDatagram(FrameType.Event, words);
+        var separate = Envelope.Wrap(FrameType.Event, Envelope.EncodeMessage(words));
         Assert.Equal(separate, combined);
+    }
+
+    [Fact]
+    public void EncodeMessage_Writes_One_Word_Table_And_Little_Endian_Words()
+    {
+        var bytes = Envelope.EncodeMessage(new ulong[] { 0x0102_0304_0506_0708 });
+        Assert.Equal(new byte[]
+        {
+            0, 0, 0, 0, 1, 0, 0, 0,             // segment count − 1 = 0, size 1 word
+            8, 7, 6, 5, 4, 3, 2, 1,             // the word, least significant byte first
+        }, bytes);
     }
 }

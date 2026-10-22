@@ -10,8 +10,10 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <!-- No Cap'n Proto runtime: frames are written by the generated schema
+       writers (Schema/ogsa_telemetry.writers.cs) over Wire.cs, in canonical
+       OGSA encoding. Decoding lives in Ogsa.Telemetry.Receiving. -->
   <ItemGroup>
-    <PackageReference Include="Capnp.Net.Runtime" Version="1.3.118" />
     <!-- spans/MemoryMarshal on netstandard2.0 (BepInEx 5 Mono plugins run on
          .NET Framework, where netstandard2.1 assemblies cannot load) -->
     <PackageReference Include="System.Memory" Version="4.5.5"

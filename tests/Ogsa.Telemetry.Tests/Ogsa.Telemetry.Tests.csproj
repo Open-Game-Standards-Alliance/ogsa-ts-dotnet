@@ -11,10 +11,6 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Capnp.Net.Runtime" Version="1.3.118" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -27,5 +23,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Ogsa.Telemetry/Ogsa.Telemetry.csproj" />
+    <!-- decoding side: Capnp.Net readers — an independent implementation
+         checking what the canonical writers produce -->
+    <ProjectReference Include="../../src/Ogsa.Telemetry.Receiving/Ogsa.Telemetry.Receiving.csproj" />
   </ItemGroup>
 </Project>

@@ -295,7 +295,7 @@ public class PublisherLoopbackTests
         Assert.Equal(CapnpGen.ContactMedium.asphalt, d1.Environment.Medium);
 
         pub.SetEnvironment(gravity: 0f, airDensity: 0f, temperature: -270f,
-                           pressure: 0f, medium: CapnpGen.ContactMedium.vacuum);
+                           pressure: 0f, medium: Ogsa.Telemetry.Schema.ContactMedium.Vacuum);
         pub.Tick(0.017); // far inside the 1 h interval
 
         var d2 = await second.Task.WaitAsync(TimeSpan.FromSeconds(5));

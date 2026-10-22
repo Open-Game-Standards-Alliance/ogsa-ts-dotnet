@@ -1,5 +1,5 @@
 using Ogsa.Telemetry;
-using Capnp;
+using Schema = Ogsa.Telemetry.Schema;
 using System.Net;
 using Xunit;
 
@@ -30,41 +30,33 @@ public class LoopbackTests
 
         using var sender = new TelemetrySender(port: port, localInterface: IPAddress.Loopback);
 
-        var mb = MessageBuilder.Create(512);
-        new CapnpGen.DiscoveryFrame
+        sender.Send(FrameType.Discovery, new Schema.DiscoveryFrame
         {
             SchemaVersion = 1,
             GameName = "loopback-test",
-            Objects = new List<CapnpGen.ObjectDescriptor>
+            Objects = new List<Schema.ObjectDescriptor>
             {
                 new() { Name = "car", Primary = true },
             },
-        }.serialize(mb.BuildRoot<CapnpGen.DiscoveryFrame.WRITER>());
-        sender.Send(FrameType.Discovery, mb);
+        });
 
-        var mmb = MessageBuilder.Create(512);
-        new CapnpGen.MotionFrame
+        sender.Send(FrameType.Motion, new Schema.MotionFrame
         {
             Timestamp = 42.0,
-            Objects = new List<CapnpGen.MotionObject>
+            Objects = new List<Schema.MotionObject>
             {
-                new() { Name = "car",
-                        Position = new CapnpGen.Vector3(),
-                        Orientation = new CapnpGen.Quaternion { W = 1f } },
+                new() { Name = "car", Orientation = { W = 1f } },
             },
-        }.serialize(mmb.BuildRoot<CapnpGen.MotionFrame.WRITER>());
-        sender.Send(FrameType.Motion, mmb);
+        });
 
-        var evtMb = MessageBuilder.Create(512);
-        new CapnpGen.EventFrame
+        sender.Send(FrameType.Event, new Schema.EventFrame
         {
             Timestamp = 42.5,
-            Events = new List<CapnpGen.Event>
+            Events = new List<Schema.Event>
             {
                 new() { Id = 1, Name = "body.impact", Intensity = 1f, Duration = 0f },
             },
-        }.serialize(evtMb.BuildRoot<CapnpGen.EventFrame.WRITER>());
-        sender.Send(FrameType.Event, evtMb);
+        });
 
         var done = await Task.WhenAll(discovery.Task, motion.Task, evnt.Task)
             .WaitAsync(TimeSpan.FromSeconds(5));

@@ -9,9 +9,15 @@ namespace Ogsa.Telemetry
 {
 
 /// <summary>
-/// LTS UDP-multicast receiver. Joins the group and demuxes by frame type.
-/// Foreign packets (bad magic) and unknown frame types are skipped silently
-/// per the evolution rules; decode failures never kill the receive loop.
+/// OGSA-TS UDP-multicast receiver. Joins the group and demuxes by frame
+/// type. Foreign packets (bad magic) and unknown frame types are skipped
+/// silently per the evolution rules; neither decode failures nor exceptions
+/// thrown by event handlers kill the receive loop.
+///
+/// The CapnpGen readers return <c>null</c> for a Text field whose pointer
+/// is null, which any valid sender may emit (implementation-capnproto.md,
+/// Encoding rules: receivers read null as the default) — handlers should
+/// read text as <c>reader.Name ?? ""</c>.
 /// </summary>
 public sealed class TelemetryReceiver : IDisposable
 {
@@ -31,6 +37,12 @@ public sealed class TelemetryReceiver : IDisposable
 
     public long ForeignSkipped { get; private set; }
     public long DecodeErrors { get; private set; }
+
+    /// <summary>Exceptions thrown by a DiscoveryReceived/MotionReceived/
+    /// EventReceived handler. The frame is dropped and the loop keeps
+    /// receiving; subscribe to surface handler bugs.</summary>
+    public event Action<Exception>? HandlerFaulted;
+    public long HandlerErrors { get; private set; }
 
     /// <param name="localInterface">NIC to join the group on, as that
     /// interface's local IPv4 address. Left null, the OS default route
@@ -95,21 +107,8 @@ public sealed class TelemetryReceiver : IDisposable
                     ForeignSkipped++;
                     continue;
                 }
-                switch (type)
-                {
-                    case FrameType.Discovery:
-                        DiscoveryReceived?.Invoke(
-                            CapnpGen.DiscoveryFrame.READER.create(DecodeRoot(payload)));
-                        break;
-                    case FrameType.Motion:
-                        MotionReceived?.Invoke(
-                            CapnpGen.MotionFrame.READER.create(DecodeRoot(payload)));
-                        break;
-                    case FrameType.Event:
-                        EventReceived?.Invoke(
-                            CapnpGen.EventFrame.READER.create(DecodeRoot(payload)));
-                        break;
-                }
+                var root = MessageDecoder.DecodeRoot(payload.Span);
+                Dispatch(type, root);
             }
             catch (Capnp.DeserializationException)
             {
@@ -126,10 +125,32 @@ public sealed class TelemetryReceiver : IDisposable
         }
     }
 
-    static Capnp.DeserializerState DecodeRoot(ReadOnlyMemory<byte> payload)
+    void Dispatch(FrameType type, Capnp.DeserializerState root)
     {
-        var frame = Envelope.DecodeMessage(payload.Span);
-        return Capnp.DeserializerState.CreateRoot(frame);
+        try
+        {
+            switch (type)
+            {
+                case FrameType.Discovery:
+                    DiscoveryReceived?.Invoke(CapnpGen.DiscoveryFrame.READER.create(root));
+                    break;
+                case FrameType.Motion:
+                    MotionReceived?.Invoke(CapnpGen.MotionFrame.READER.create(root));
+                    break;
+                case FrameType.Event:
+                    EventReceived?.Invoke(CapnpGen.EventFrame.READER.create(root));
+                    break;
+            }
+        }
+        catch (Capnp.DeserializationException)
+        {
+            throw; // malformed message read lazily by a handler: a decode error
+        }
+        catch (Exception ex)
+        {
+            HandlerErrors++;
+            try { HandlerFaulted?.Invoke(ex); } catch (Exception) { }
+        }
     }
 
     public void Dispose()

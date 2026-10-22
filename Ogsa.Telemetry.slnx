@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Ogsa.Telemetry/Ogsa.Telemetry.csproj" />
+    <Project Path="src/Ogsa.Telemetry.Receiving/Ogsa.Telemetry.Receiving.csproj" />
     <Project Path="src/TelemetryDemo/TelemetryDemo.csproj" />
     <Project Path="src/TelemetryReceive/TelemetryReceive.csproj" />
     <Project Path="src/ConformanceGen/ConformanceGen.csproj" />
