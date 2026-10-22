@@ -39,6 +39,19 @@ public class ConformanceVectorTests
         return (type, MessageDecoder.DecodeRoot(payload.Span));
     }
 
+    public static IEnumerable<object[]> VectorIds() =>
+        ConformanceVectors.All().Select(v => new object[] { v.Id });
+
+    [Theory]
+    [MemberData(nameof(VectorIds))]
+    public void Encodes_Byte_Identical_To_Corpus(string id)
+    {
+        var vector = ConformanceVectors.All().Single(v => v.Id == id);
+        var hex = string.Concat(File.ReadAllLines(
+            Path.Combine(CorpusDir(), "vectors", id + ".hex")));
+        Assert.Equal(Convert.FromHexString(hex), vector.Encode());
+    }
+
     [Fact]
     public void Discovery_Minimal()
     {
