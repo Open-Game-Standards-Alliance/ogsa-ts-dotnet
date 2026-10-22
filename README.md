@@ -14,6 +14,12 @@ suite. The schema layer is generated from the standard's schema
 (`ogsa_telemetry.capnp`, currently v1); wire compatibility follows
 the standard's evolution rules (unknown fields/enums/frame types skipped).
 
+**Built with AI assistance.** Significant portions of this code
+(including the wire codec, unit conversions, and body-dynamics
+derivation) were written with AI coding assistance under
+human direction and review. Review and test before relying on it,
+especially around networking and the conversion/derivation math.
+
 ## Layout
 
 | Path | Contents |
