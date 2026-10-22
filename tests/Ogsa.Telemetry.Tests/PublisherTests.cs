@@ -292,6 +292,7 @@ public class PublisherLoopbackTests
 
         var d1 = await first.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(9.81f, d1.Environment.Gravity, 4);
+        Assert.Equal(101325f, d1.Environment.Pressure); // Pa (schema, CONVENTIONS C-3)
         Assert.Equal(CapnpGen.ContactMedium.asphalt, d1.Environment.Medium);
 
         pub.SetEnvironment(gravity: 0f, airDensity: 0f, temperature: -270f,
