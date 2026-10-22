@@ -4,9 +4,11 @@ using Capnp;
 using Xunit;
 
 /// <summary>Guards the conformance corpus in the standard repo: every
-/// golden datagram must decode to its manifest-declared semantics. The
+/// golden datagram must decode (Capnp.Net, independent of the canonical
+/// writers that generated it) to its manifest-declared semantics. The
 /// encode direction is guarded by regeneration (git diff must be empty
-/// unless a wire change is deliberate). See conformance/README.md there.</summary>
+/// unless a wire change is deliberate) and the standard's validate.py.
+/// See conformance/README.md there.</summary>
 public class ConformanceVectorTests
 {
     static string CorpusDir()
@@ -34,7 +36,7 @@ public class ConformanceVectorTests
             Path.Combine(CorpusDir(), "vectors", id + ".hex")));
         var bytes = Convert.FromHexString(hex);
         Assert.True(Envelope.TryUnwrap(bytes, out var type, out var payload), id);
-        return (type, DeserializerState.CreateRoot(Envelope.DecodeMessage(payload.Span)));
+        return (type, MessageDecoder.DecodeRoot(payload.Span));
     }
 
     [Fact]

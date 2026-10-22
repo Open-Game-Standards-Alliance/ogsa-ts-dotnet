@@ -7,10 +7,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Capnp.Net.Runtime" Version="1.3.118" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../../src/Ogsa.Telemetry/Ogsa.Telemetry.csproj" />
+    <ProjectReference Include="../../src/Ogsa.Telemetry.Receiving/Ogsa.Telemetry.Receiving.csproj" />
   </ItemGroup>
 </Project>

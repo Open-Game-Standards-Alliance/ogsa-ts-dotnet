@@ -59,6 +59,26 @@ jobs:
       - name: Byte-compare against the standard repo
         run: diff -r -x README.md -x validate.py /tmp/corpus OGSA-Telemetry-Standard/conformance
         # (README.md and validate.py in the corpus dir are hand-written, not generated)
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+      - run: pip install pycapnp
+      - name: Independent check (canonical OGSA encoding, manifest exactness)
+        run: python OGSA-Telemetry-Standard/conformance/validate.py
+
+  writers-current:
+    # The committed schema writers must match what gen_writers.py emits
+    # for the vendored schema (generated code is never hand-edited).
+    if: github.event_name != 'repository_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+      - run: pip install pycapnp
+      - run: python capnp/gen_writers.py
+      - run: git diff --exit-code src/Ogsa.Telemetry/Schema
 
   core-drift:
     # The vendored cores in the engine repos must stay byte-identical to

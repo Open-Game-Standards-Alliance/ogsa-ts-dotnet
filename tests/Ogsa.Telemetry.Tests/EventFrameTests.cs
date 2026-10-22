@@ -1,5 +1,6 @@
 using Ogsa.Telemetry;
-using Capnp;
+using Ogsa.Telemetry.Schema;
+using Ogsa.Telemetry.Wire;
 using Xunit;
 
 public class EventFrameTests
@@ -7,61 +8,45 @@ public class EventFrameTests
     [Fact]
     public void Event_Frame_Serializes_And_Decodes()
     {
-        var frame = new CapnpGen.EventFrame
+        var impact = new Event { Id = 7, Name = "body.impact", Intensity = 0.8f, Duration = 0.25f };
+        impact.InitDirection().X = -1f;
+        var frame = new EventFrame
         {
             Timestamp = 4.25,
-            Events = new List<CapnpGen.Event>
+            Events = new List<Event>
             {
-                new()
-                {
-                    Id = 7, Name = "body.impact", Intensity = 0.8f, Duration = 0.25f,
-                    Direction = new CapnpGen.Vector3 { X = -1f },
-                },
-                new()
-                {
-                    Id = 8, Name = "weapon.fire", Intensity = 0.5f, Duration = 0f,
-                    // noDirection: union default
-                },
+                impact,
+                new() { Id = 8, Name = "weapon.fire", Intensity = 0.5f }, // noDirection: union default
             },
         };
 
-        var mb = MessageBuilder.Create(512);
-        frame.serialize(mb.BuildRoot<CapnpGen.EventFrame.WRITER>());
-        var bytes = Envelope.EncodeMessage(mb);
-
         var r = CapnpGen.EventFrame.READER.create(
-            DeserializerState.CreateRoot(Envelope.DecodeMessage(bytes)));
+            MessageDecoder.DecodeRoot(Envelope.EncodeMessage(CanonicalEncoder.Encode(frame))));
 
         Assert.Equal(4.25, r.Timestamp, 6);
         Assert.Equal(2, r.Events.Count);
 
-        var impact = r.Events[0];
-        Assert.Equal(7u, impact.Id);
-        Assert.Equal("body.impact", impact.Name);
-        Assert.Equal(0.8f, impact.Intensity);
-        Assert.Equal(0.25f, impact.Duration);
-        Assert.Equal(CapnpGen.Event.WHICH.Direction, impact.which);
-        Assert.Equal(-1f, impact.Direction.X); // hit from the left (C-10)
+        var hit = r.Events[0];
+        Assert.Equal(7u, hit.Id);
+        Assert.Equal("body.impact", hit.Name);
+        Assert.Equal(0.8f, hit.Intensity);
+        Assert.Equal(0.25f, hit.Duration);
+        Assert.Equal(CapnpGen.Event.WHICH.Direction, hit.which);
+        Assert.Equal(-1f, hit.Direction.X); // hit from the left (C-10)
 
         var fire = r.Events[1];
         Assert.Equal(8u, fire.Id);
-        // unset union = undefined discriminant; receivers treat undefined and
-        // noDirection identically (omnidirectional, the Void default)
-        Assert.NotEqual(CapnpGen.Event.WHICH.Direction, fire.which);
+        // an untouched optionality union is zero: the Void default
+        Assert.Equal(CapnpGen.Event.WHICH.NoDirection, fire.which);
         Assert.Equal(0f, fire.Duration); // momentary impulse
+        Assert.Equal("", fire.Object);   // "" = primary object, written explicitly
     }
 
     [Fact]
     public void Envelope_Carries_Event_Frame_Type()
     {
-        var mb = MessageBuilder.Create(512);
-        new CapnpGen.EventFrame
-        {
-            Timestamp = 1.0,
-            Events = new List<CapnpGen.Event>(),
-        }.serialize(mb.BuildRoot<CapnpGen.EventFrame.WRITER>());
-
-        var datagram = Envelope.Wrap(FrameType.Event, Envelope.EncodeMessage(mb));
+        var datagram = CanonicalEncoder.EncodeDatagram(FrameType.Event,
+            new EventFrame { Timestamp = 1.0, Events = new List<Event>() });
         Assert.True(Envelope.TryUnwrap(datagram, out var type, out var payload));
         Assert.Equal(FrameType.Event, type);
         Assert.True(payload.Length > 0);

@@ -23,6 +23,33 @@ public class ReceiverTests
     }
 
     [Fact]
+    public async Task Throwing_Handler_Does_Not_Stop_The_Receive_Loop()
+    {
+        const int port = 41244;
+        using var receiver = new TelemetryReceiver(port: port,
+            localInterface: System.Net.IPAddress.Loopback);
+        var faulted = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<double>(TaskCreationOptions.RunContinuationsAsynchronously);
+        receiver.HandlerFaulted += ex => faulted.TrySetResult(ex);
+        receiver.MotionReceived += m =>
+        {
+            if (m.Timestamp == 1.0) throw new InvalidOperationException("handler bug");
+            second.TrySetResult(m.Timestamp);
+        };
+        receiver.Start();
+
+        using var sender = new TelemetrySender(port: port,
+            localInterface: System.Net.IPAddress.Loopback);
+        sender.Send(FrameType.Motion, new Ogsa.Telemetry.Schema.MotionFrame { Timestamp = 1.0 });
+        var ex = await faulted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("handler bug", ex.Message);
+
+        sender.Send(FrameType.Motion, new Ogsa.Telemetry.Schema.MotionFrame { Timestamp = 2.0 });
+        Assert.Equal(2.0, await second.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(1, receiver.HandlerErrors);
+    }
+
+    [Fact]
     public void Dispose_Is_Idempotent()
     {
         var receiver = new TelemetryReceiver(port: 41243);
