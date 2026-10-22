@@ -76,30 +76,19 @@ receiver.MotionReceived += m =>
 static (float yaw, float pitch, float roll) ToEulerDegrees(
     CapnpGen.Quaternion.READER q)
 {
-    var f = RotateBy(q, 0, 0, 1);
-    var r = RotateBy(q, 1, 0, 0);
+    var rot = new System.Numerics.Quaternion(q.X, q.Y, q.Z, q.W);
+    var f = System.Numerics.Vector3.Transform(System.Numerics.Vector3.UnitZ, rot);
+    var r = System.Numerics.Vector3.Transform(System.Numerics.Vector3.UnitX, rot);
     const float rad2deg = 180f / MathF.PI;
-    float yaw = MathF.Atan2(f.x, f.z) * rad2deg;
-    float pitch = MathF.Asin(Clamp1(f.y)) * rad2deg;
+    float yaw = MathF.Atan2(f.X, f.Z) * rad2deg;
+    float pitch = MathF.Asin(Clamp1(f.Y)) * rad2deg;
     float cosPitch = MathF.Cos(pitch / rad2deg);
     float roll = MathF.Abs(cosPitch) < 1e-3f ? 0f
-        : MathF.Asin(Clamp1(-r.y / cosPitch)) * rad2deg;
+        : MathF.Asin(Clamp1(-r.Y / cosPitch)) * rad2deg;
     return (yaw, pitch, roll);
 }
 
 static float Clamp1(float v) => v < -1f ? -1f : v > 1f ? 1f : v;
-
-// v' = q v q⁻¹ for a unit quaternion (t = 2·(q_vec × v))
-static (float x, float y, float z) RotateBy(
-    CapnpGen.Quaternion.READER q, float x, float y, float z)
-{
-    float tx = 2f * (q.Y * z - q.Z * y);
-    float ty = 2f * (q.Z * x - q.X * z);
-    float tz = 2f * (q.X * y - q.Y * x);
-    return (x + q.W * tx + (q.Y * tz - q.Z * ty),
-            y + q.W * ty + (q.Z * tx - q.X * tz),
-            z + q.W * tz + (q.X * ty - q.Y * tx));
-}
 
 static string Signed(float v) => (v >= 0 ? "+" : "") + (v + 0f).ToString("F1"); // +0f folds -0.0
 
