@@ -1,6 +1,11 @@
 # ogsa-ts-dotnet
 
-.NET reference implementation of the [OGSA Telemetry Standard (OGSA-TS)](../OGSA-Telemetry-Standard)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/telemetry-standard-dark.svg">
+  <img align="right" width="120" src="assets/telemetry-standard.svg" alt="OGSA Telemetry Standard logo">
+</picture>
+
+.NET reference implementation of the [OGSA Telemetry Standard (OGSA-TS)](https://github.com/Open-Game-Standards-Alliance/OGSA-Telemetry-Standard)
 — a two-layer, UDP-multicast motion telemetry protocol for motion platforms,
 haptics, and cueing systems. Loopback-testable on any single machine
 (macOS, Linux, Windows); the same code is the starting point for Unity
