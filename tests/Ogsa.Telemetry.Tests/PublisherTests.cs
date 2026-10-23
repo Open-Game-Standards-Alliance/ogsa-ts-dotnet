@@ -304,4 +304,76 @@ public class PublisherLoopbackTests
         Assert.Equal(0f, d2.Environment.AirDensity, 5);
         Assert.Equal(CapnpGen.ContactMedium.vacuum, d2.Environment.Medium);
     }
+
+    [Fact]
+    public async Task Pause_Rides_Every_Motion_Frame_Without_Dynamics()
+    {
+        // CONVENTIONS C-11: session.paused is declared in discovery, carried
+        // in every motion frame, and a paused frame sends noDynamics; the
+        // stream keeps flowing so receivers never read a pause as staleness
+        const int port = 41245;
+        using var receiver = new TelemetryReceiver(port: port, localInterface: IPAddress.Loopback);
+        var discovery = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var frames = new List<(bool Paused, CapnpGen.MotionObject.WHICH Dynamics)>();
+        int pausedId = -1;
+        receiver.DiscoveryReceived += d =>
+        {
+            var chs = d.Objects[0].Channels;
+            for (int i = 0; i < chs.Count; i++)
+                if (chs[i].Name == TelemetryPublisher.PausedChannelName)
+                    pausedId = chs[i].Id;
+            discovery.TrySetResult(d);
+        };
+        receiver.MotionReceived += m =>
+        {
+            var o = m.Objects[0];
+            var paused = o.Channels.Single(c => c.Id == pausedId).Boolean;
+            lock (frames)
+            {
+                frames.Add((paused, o.which));
+                if (frames.Count >= 3) done.TrySetResult();
+            }
+        };
+        receiver.Start();
+
+        using var sender = new TelemetrySender(port: port, localInterface: IPAddress.Loopback);
+        using var pub = new TelemetryPublisher(sender, "pause-test", motionHz: 60);
+        pub.DeclareObject("car");
+        pub.DeclarePause();
+        pub.BindBodyDynamics(() => (new Vector3(0, 9.80665f, 0), Vector3.Zero));
+
+        pub.Tick(0.0);             // live
+        await discovery.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        pub.SetPaused(true);
+        pub.Tick(0.017);           // paused: still sending
+        pub.SetPaused(false);
+        pub.Tick(0.034);           // resumed
+
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(pausedId >= 0, "session.paused declared in discovery");
+        Assert.Equal(new[]
+        {
+            (false, CapnpGen.MotionObject.WHICH.BodyDynamics),
+            (true, CapnpGen.MotionObject.WHICH.NoDynamics),
+            (false, CapnpGen.MotionObject.WHICH.BodyDynamics),
+        }, frames.Take(3));
+    }
+
+    [Fact]
+    public void SetPaused_After_First_Tick_Requires_DeclarePause()
+    {
+        using var sender = new TelemetrySender(port: 41246, localInterface: IPAddress.Loopback);
+        using var pub = new TelemetryPublisher(sender, "pause-guard");
+        pub.Tick(0.0);
+        Assert.Throws<InvalidOperationException>(() => pub.SetPaused(true));
+
+        using var declared = new TelemetryPublisher(sender, "pause-ok");
+        declared.DeclarePause();
+        declared.DeclarePause(); // idempotent
+        declared.Tick(0.0);
+        declared.SetPaused(true);
+        Assert.True(declared.Paused);
+    }
 }

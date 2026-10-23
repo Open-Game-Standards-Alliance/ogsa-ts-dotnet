@@ -69,6 +69,13 @@ per tick — they ride MotionFrame/EventFrame. Bind-time source units
 precomputed factors (`Conversions`); mismatches throw at bind, not on the
 wire. See `tests/Ogsa.Telemetry.Tests/PublisherTests.cs` for the pattern.
 
+Pause ([CONVENTIONS C-11](https://github.com/Open-Game-Standards-Alliance/OGSA-Telemetry-Standard/blob/main/CONVENTIONS.md#c-11-pause)): hosts that can tell when their game is paused call
+`DeclarePause()` during setup and `SetPaused(bool)` as the state changes,
+and keep calling `Tick` on a real-time clock while paused. Motion frames
+keep flowing with the frozen pose, `session.paused` set and no dynamics,
+so receivers bring hardware to rest instead of reading the silence as a
+dead session. The engine plugins do all of this for you.
+
 ## Loopback demo
 
 Two terminals:
