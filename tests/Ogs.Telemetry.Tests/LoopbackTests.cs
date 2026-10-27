@@ -1,5 +1,5 @@
-using Ogsa.Telemetry;
-using Schema = Ogsa.Telemetry.Schema;
+using Ogs.Telemetry;
+using Schema = Ogs.Telemetry.Schema;
 using System.Net;
 using Xunit;
 

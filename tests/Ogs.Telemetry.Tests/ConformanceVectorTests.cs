@@ -1,5 +1,5 @@
 #nullable enable
-using Ogsa.Telemetry;
+using Ogs.Telemetry;
 using Capnp;
 using Xunit;
 
@@ -15,15 +15,15 @@ public class ConformanceVectorTests
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null &&
-               !File.Exists(Path.Combine(dir.FullName, "Ogsa.Telemetry.slnx")))
+               !File.Exists(Path.Combine(dir.FullName, "Ogs.Telemetry.slnx")))
             dir = dir.Parent;
         Assert.NotNull(dir);
         // sibling of the repo (local dev), then nested inside it (CI checks
         // the standard repo out into the workspace), then any ancestor
         string[] candidates =
         {
-            Path.Combine(dir!.Parent!.FullName, "OGSA-Telemetry-Standard", "conformance"),
-            Path.Combine(dir.FullName, "OGSA-Telemetry-Standard", "conformance"),
+            Path.Combine(dir!.Parent!.FullName, "OGS-Telemetry-Standard", "conformance"),
+            Path.Combine(dir.FullName, "OGS-Telemetry-Standard", "conformance"),
         };
         var found = candidates.FirstOrDefault(Directory.Exists);
         Assert.NotNull(found);

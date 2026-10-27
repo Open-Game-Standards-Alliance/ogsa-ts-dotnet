@@ -1,4 +1,4 @@
-using Ogsa.Telemetry;
+using Ogs.Telemetry;
 using Xunit;
 
 /// <summary>Receiver lifecycle: Dispose must stop the receive loop
@@ -40,11 +40,11 @@ public class ReceiverTests
 
         using var sender = new TelemetrySender(port: port,
             localInterface: System.Net.IPAddress.Loopback);
-        sender.Send(FrameType.Motion, new Ogsa.Telemetry.Schema.MotionFrame { Timestamp = 1.0 });
+        sender.Send(FrameType.Motion, new Ogs.Telemetry.Schema.MotionFrame { Timestamp = 1.0 });
         var ex = await faulted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal("handler bug", ex.Message);
 
-        sender.Send(FrameType.Motion, new Ogsa.Telemetry.Schema.MotionFrame { Timestamp = 2.0 });
+        sender.Send(FrameType.Motion, new Ogs.Telemetry.Schema.MotionFrame { Timestamp = 2.0 });
         Assert.Equal(2.0, await second.Task.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.Equal(1, receiver.HandlerErrors);
     }

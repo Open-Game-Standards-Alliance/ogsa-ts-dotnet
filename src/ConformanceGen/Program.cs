@@ -1,12 +1,12 @@
 #nullable enable
 using System.Text;
-using Ogsa.Telemetry;
+using Ogs.Telemetry;
 
-// ConformanceGen — deterministic OGSA-TS conformance corpus generator.
+// ConformanceGen — deterministic OGS-TS conformance corpus generator.
 // Writes golden datagrams (hex) + semantic manifest into the standard repo
-// (default ../OGSA-Telemetry-Standard/conformance). The frames come from
-// Ogsa.Telemetry.ConformanceVectors (which engine hosts also encode to
-// check their runtime against the corpus) in canonical OGSA encoding, so
+// (default ../OGS-Telemetry-Standard/conformance). The frames come from
+// Ogs.Telemetry.ConformanceVectors (which engine hosts also encode to
+// check their runtime against the corpus) in canonical OGS encoding, so
 // the bytes are a function of the content alone. Each manifest input below
 // lists every field that differs from its default — an independent encoder
 // can rebuild the vector from it; the standard's validate.py checks each
@@ -14,7 +14,7 @@ using Ogsa.Telemetry;
 // Usage: dotnet run --project src/ConformanceGen [outputDir]
 
 var outDir = args.Length > 0 ? args[0]
-    : "../OGSA-Telemetry-Standard/conformance";
+    : "../OGS-Telemetry-Standard/conformance";
 var vecDir = Path.Combine(outDir, "vectors");
 Directory.CreateDirectory(vecDir);
 

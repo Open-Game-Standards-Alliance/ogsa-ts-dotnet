@@ -7,6 +7,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Ogsa.Telemetry/Ogsa.Telemetry.csproj" />
+    <ProjectReference Include="../../src/Ogs.Telemetry/Ogs.Telemetry.csproj" />
   </ItemGroup>
 </Project>

@@ -1,12 +1,12 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Ogsa.Telemetry/Ogsa.Telemetry.csproj" />
-    <Project Path="src/Ogsa.Telemetry.Receiving/Ogsa.Telemetry.Receiving.csproj" />
+    <Project Path="src/Ogs.Telemetry/Ogs.Telemetry.csproj" />
+    <Project Path="src/Ogs.Telemetry.Receiving/Ogs.Telemetry.Receiving.csproj" />
     <Project Path="src/TelemetryDemo/TelemetryDemo.csproj" />
     <Project Path="src/TelemetryReceive/TelemetryReceive.csproj" />
     <Project Path="src/ConformanceGen/ConformanceGen.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Ogsa.Telemetry.Tests/Ogsa.Telemetry.Tests.csproj" />
+    <Project Path="tests/Ogs.Telemetry.Tests/Ogs.Telemetry.Tests.csproj" />
   </Folder>
 </Solution>

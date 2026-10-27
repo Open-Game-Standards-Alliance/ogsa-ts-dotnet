@@ -1,4 +1,4 @@
-using Ogsa.Telemetry;
+using Ogs.Telemetry;
 using CapnpGen;
 
 // Reference receiver: joins the multicast group, prints discovery once and
@@ -78,7 +78,7 @@ receiver.MotionReceived += m =>
     }
 };
 
-// Orientation readout in the OGSA-TS frame (left-handed: Z forward, X
+// Orientation readout in the OGS-TS frame (left-handed: Z forward, X
 // right, Y up). ZYX Tait-Bryan angles from the rotated basis vectors:
 // forward f = q·(0,0,1), right r = q·(1,0,0) → yaw = atan2(f.X, f.Z)
 // (0 = +Z, turning right positive), pitch = asin(f.Y) (nose up

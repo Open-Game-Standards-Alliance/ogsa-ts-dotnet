@@ -1,11 +1,11 @@
-# ogsa-ts-dotnet
+# ogs-ts-dotnet
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/telemetry-standard-dark.svg">
-  <img align="right" width="120" src="assets/telemetry-standard.svg" alt="OGSA Telemetry Standard logo">
+  <img align="right" width="120" src="assets/telemetry-standard.svg" alt="OGS Telemetry Standard logo">
 </picture>
 
-.NET reference implementation of the [OGSA Telemetry Standard (OGSA-TS)](https://github.com/Open-Game-Standards-Alliance/OGSA-Telemetry-Standard)
+.NET reference implementation of the [OGS Telemetry Standard (OGS-TS)](https://github.com/Open-Game-Standards/OGS-Telemetry-Standard)
 — a two-layer, UDP-multicast motion telemetry protocol for motion platforms,
 haptics, and cueing systems. Loopback-testable on any single machine
 (macOS, Linux, Windows); the same code is the starting point for Unity
@@ -16,16 +16,16 @@ Community & support: [Discord](https://discord.gg/tseF4Q6U99)
 Status: **bootstrap** — envelope, multicast transport, canonical schema
 writers, a demo sender, a reference receiver, and a passing loopback test
 suite. The schema layer is generated from the standard's schema
-(`ogsa_telemetry.capnp`, currently v1); wire compatibility follows
+(`ogs_telemetry.capnp`, currently v1); wire compatibility follows
 the standard's evolution rules (unknown fields/enums/frame types skipped).
 
-The sending library (`Ogsa.Telemetry`) has **no Cap'n Proto runtime
+The sending library (`Ogs.Telemetry`) has **no Cap'n Proto runtime
 dependency**: frames are written by generated writers over a small
-pure-managed encoder (`Wire.cs`) in the standard's canonical OGSA encoding
+pure-managed encoder (`Wire.cs`) in the standard's canonical OGS encoding
 (implementation-capnproto.md, Encoding rules) — no reflection, no unsafe
 code, no host-endian memory views, so it runs on Mono, IL2CPP, NativeAOT,
 ARM and big-endian hosts alike. Decoding (receivers, tests) lives in
-`Ogsa.Telemetry.Receiving`, which uses Capnp.Net.Runtime.
+`Ogs.Telemetry.Receiving`, which uses Capnp.Net.Runtime.
 
 **Built with AI assistance.** Significant portions of this code
 (including the wire codec, unit conversions, and body-dynamics
@@ -37,13 +37,13 @@ especially around networking and the conversion/derivation math.
 
 | Path | Contents |
 |---|---|
-| `src/Ogsa.Telemetry` | Sending library, no dependencies: `Envelope` (OMT1 header + message framing), `Wire` (canonical encoder), `TelemetrySender`, `TelemetryPublisher` (declare/bind/push wiring), `Unit` + `Conversions` (bind-time unit massaging) |
-| `src/Ogsa.Telemetry/Schema` | Generated canonical writers (`capnp/gen_writers.py` regenerates) |
-| `src/Ogsa.Telemetry.Receiving` | Receiving library: `TelemetryReceiver`, `MessageDecoder`, generated Capnp.Net readers in `Schema/` (`capnp/build.sh` regenerates) |
+| `src/Ogs.Telemetry` | Sending library, no dependencies: `Envelope` (OMT1 header + message framing), `Wire` (canonical encoder), `TelemetrySender`, `TelemetryPublisher` (declare/bind/push wiring), `Unit` + `Conversions` (bind-time unit massaging) |
+| `src/Ogs.Telemetry/Schema` | Generated canonical writers (`capnp/gen_writers.py` regenerates) |
+| `src/Ogs.Telemetry.Receiving` | Receiving library: `TelemetryReceiver`, `MessageDecoder`, generated Capnp.Net readers in `Schema/` (`capnp/build.sh` regenerates) |
 | `src/TelemetryDemo` | Demo sender: one car, discovery every 2 s, ~60 Hz motion |
 | `src/TelemetryReceive` | Reference receiver with conformance checks |
 | `src/ConformanceGen` | Deterministic conformance-corpus generator (writes to the standard repo) |
-| `tests/Ogsa.Telemetry.Tests` | xunit: canonical encoding, writer → Capnp.Net roundtrip, envelope, UDP multicast loopback |
+| `tests/Ogs.Telemetry.Tests` | xunit: canonical encoding, writer → Capnp.Net roundtrip, envelope, UDP multicast loopback |
 
 ## Build & test
 
@@ -54,7 +54,7 @@ dotnet test
 
 ## Multi-target (Unity/Godot compat)
 
-`Ogsa.Telemetry` targets `netstandard2.0;netstandard2.1;net10.0` at `LangVersion 9.0`
+`Ogs.Telemetry` targets `netstandard2.0;netstandard2.1;net10.0` at `LangVersion 9.0`
 (Unity's compiler ceiling), no implicit usings — the library source is the
 vendored core for engine packages and must compile identically in every
 host. Console projects (`TelemetryDemo`, `TelemetryReceive`) stay net10.0.
@@ -67,16 +67,16 @@ that becomes the DiscoveryFrame; then bind getters (pull) or push values
 per tick — they ride MotionFrame/EventFrame. Bind-time source units
 (`Unit.KilometrePerHour`, `Unit.Degree`, `Unit.Psi`, …) convert with
 precomputed factors (`Conversions`); mismatches throw at bind, not on the
-wire. See `tests/Ogsa.Telemetry.Tests/PublisherTests.cs` for the pattern.
+wire. See `tests/Ogs.Telemetry.Tests/PublisherTests.cs` for the pattern.
 
-Pause ([CONVENTIONS C-11](https://github.com/Open-Game-Standards-Alliance/OGSA-Telemetry-Standard/blob/main/CONVENTIONS.md#c-11-pause)): hosts that can tell when their game is paused call
+Pause ([CONVENTIONS C-11](https://github.com/Open-Game-Standards/OGS-Telemetry-Standard/blob/main/CONVENTIONS.md#c-11-pause)): hosts that can tell when their game is paused call
 `DeclarePause()` during setup and `SetPaused(bool)` as the state changes,
 and keep calling `Tick` on a real-time clock while paused. Motion frames
 keep flowing with the frozen pose, `session.paused` set and no dynamics,
 so receivers bring hardware to rest instead of reading the silence as a
 dead session. The engine plugins do all of this for you.
 
-Gravity ([CONVENTIONS C-12](https://github.com/Open-Game-Standards-Alliance/OGSA-Telemetry-Standard/blob/main/CONVENTIONS.md#c-12-gravity)): discovery declares standard gravity along world −Y
+Gravity ([CONVENTIONS C-12](https://github.com/Open-Game-Standards/OGS-Telemetry-Standard/blob/main/CONVENTIONS.md#c-12-gravity)): discovery declares standard gravity along world −Y
 unless told otherwise. `SetGravity(Vector3)` (or the `SetEnvironment`
 vector overload) declares the session gravity — a straight-down vector
 rides as the scalar alone, any other direction also as `gravityVector`.
@@ -106,7 +106,7 @@ liveness rules receivers should apply.
 ## Regenerating bindings after a schema change
 
 ```bash
-cp ../OGSA-Telemetry-Standard/ogsa_telemetry.capnp capnp/
+cp ../OGS-Telemetry-Standard/ogs_telemetry.capnp capnp/
 python capnp/gen_writers.py   # writers (sending)  — needs: pip install pycapnp
 capnp/build.sh                # readers (receiving) — needs: capnp + capnpc-csharp
 ```

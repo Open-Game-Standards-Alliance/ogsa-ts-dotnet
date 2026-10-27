@@ -1,13 +1,13 @@
 using System.Numerics;
-using Ogsa.Telemetry;
+using Ogs.Telemetry;
 using Xunit;
 
-namespace Ogsa.Telemetry.Tests;
+namespace Ogs.Telemetry.Tests;
 
 /// <summary>
 /// Pins the pose→body-dynamics derivation used by senders without native
 /// accelerometer-class data (BepInEx/UE4SS plugins, and the C++ twin in
-/// ogsa-ts-unreal). Two properties matter:
+/// ogs-ts-unreal). Two properties matter:
 ///   1. specific force is accelerometer-style (convention A): at rest it
 ///      reads +9.80665 on the axis that points away from gravity.
 ///   2. angular velocity uses the C-4 component sense — for pure-axis

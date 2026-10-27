@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Ogsa.Telemetry/Ogsa.Telemetry.csproj" />
+    <ProjectReference Include="../Ogs.Telemetry/Ogs.Telemetry.csproj" />
   </ItemGroup>
 
 </Project>

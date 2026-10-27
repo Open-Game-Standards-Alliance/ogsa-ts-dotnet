@@ -1,6 +1,6 @@
-using Ogsa.Telemetry;
-using Ogsa.Telemetry.Schema;
-using Ogsa.Telemetry.Wire;
+using Ogs.Telemetry;
+using Ogs.Telemetry.Schema;
+using Ogs.Telemetry.Wire;
 using Xunit;
 
 /// <summary>Canonical writers → Capnp.Net readers: an independent Cap'n

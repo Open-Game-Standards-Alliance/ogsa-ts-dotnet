@@ -3,7 +3,7 @@
   <!-- Receive side: Capnp.Net.Runtime decoding (generated CapnpGen
        readers) + the multicast TelemetryReceiver. Receivers and test
        tooling reference this; game-side senders need only the
-       dependency-free Ogsa.Telemetry core. -->
+       dependency-free Ogs.Telemetry core. -->
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
     <LangVersion>9.0</LangVersion>
@@ -14,7 +14,7 @@
     <PackageReference Include="Capnp.Net.Runtime" Version="1.3.118" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../Ogsa.Telemetry/Ogsa.Telemetry.csproj" />
+    <ProjectReference Include="../Ogs.Telemetry/Ogs.Telemetry.csproj" />
   </ItemGroup>
 
 </Project>

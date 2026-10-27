@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- The ProjectReference below is SOURCE-based: the test suite
-       compiles against ../../src/Ogsa.Telemetry directly, including
+       compiles against ../../src/Ogs.Telemetry directly, including
        BodyDynamicsDeriver.cs (the pose→dynamics deriver whose semantics
        these tests pin). -->
   <PropertyGroup>
@@ -22,9 +22,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Ogsa.Telemetry/Ogsa.Telemetry.csproj" />
+    <ProjectReference Include="../../src/Ogs.Telemetry/Ogs.Telemetry.csproj" />
     <!-- decoding side: Capnp.Net readers — an independent implementation
          checking what the canonical writers produce -->
-    <ProjectReference Include="../../src/Ogsa.Telemetry.Receiving/Ogsa.Telemetry.Receiving.csproj" />
+    <ProjectReference Include="../../src/Ogs.Telemetry.Receiving/Ogs.Telemetry.Receiving.csproj" />
   </ItemGroup>
 </Project>

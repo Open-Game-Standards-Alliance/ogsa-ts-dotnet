@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
-using Ogsa.Telemetry;
+using Ogs.Telemetry;
 
 // Demo sender on the engine-agnostic TelemetryPublisher: one vehicle
 // circling at 10 m with four wheels, rpm/headlights channels and a
@@ -11,7 +11,7 @@ using Ogsa.Telemetry;
 using var sender = new TelemetrySender();
 using var pub = new TelemetryPublisher(sender, "TelemetryDemo", motionHz: 60);
 
-pub.DeclareObject("player_car", "OGSA-TS demo car");
+pub.DeclareObject("player_car", "OGS-TS demo car");
 
 // front wheels steer, rear wheels drive (standard frame: +Z forward)
 pub.AddWheel("wheel_fl", new Vector3(1.2f, 0f, 0.8f), 0.34f, driven: false, steered: true);

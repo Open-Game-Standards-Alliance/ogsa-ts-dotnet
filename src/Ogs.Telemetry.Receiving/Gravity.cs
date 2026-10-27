@@ -1,7 +1,7 @@
 #nullable enable
 using System.Numerics;
 
-namespace Ogsa.Telemetry
+namespace Ogs.Telemetry
 {
 
 /// <summary>

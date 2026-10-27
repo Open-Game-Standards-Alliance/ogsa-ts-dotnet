@@ -1,8 +1,8 @@
-using Ogsa.Telemetry.Schema;
-using Ogsa.Telemetry.Wire;
+using Ogs.Telemetry.Schema;
+using Ogs.Telemetry.Wire;
 using Xunit;
 
-/// <summary>Canonical OGSA encoding (the standard's implementation-capnproto.md,
+/// <summary>Canonical OGS encoding (the standard's implementation-capnproto.md,
 /// Encoding rules): canonical form, zeroed unused storage, fixed field
 /// presence — so equal content always yields equal bytes.</summary>
 public class WireTests

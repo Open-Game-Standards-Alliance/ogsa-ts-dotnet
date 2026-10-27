@@ -1,7 +1,7 @@
 #nullable enable
 using System;
 
-namespace Ogsa.Telemetry
+namespace Ogs.Telemetry
 {
 
 /// <summary>Decodes the Cap'n Proto payload of an OMT1 datagram (after

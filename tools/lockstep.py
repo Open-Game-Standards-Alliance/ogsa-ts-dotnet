@@ -2,9 +2,9 @@
 """lockstep.py — the conversion-table lockstep check.
 
 Asserts the bind-path unit-conversion tables are identical across:
-  * ogsa-ts-dotnet   src/Ogsa.Telemetry/Conversions.cs (+ Unit.cs wire strings)
-  * ogsa-ts-unreal   Source/OgsaTelemetry/Private/TelemetryPublisherComponent.cpp
-  * OGSA-Telemetry-Standard  IMPLEMENTING.md (the non-normative guidance table)
+  * ogs-ts-dotnet   src/Ogs.Telemetry/Conversions.cs (+ Unit.cs wire strings)
+  * ogs-ts-unreal   Source/OgsTelemetry/Private/TelemetryPublisherComponent.cpp
+  * OGS-Telemetry-Standard  IMPLEMENTING.md (the non-normative guidance table)
 
 Pair sets must match everywhere; factors must match between the two code
 tables (the markdown table is checked for pair presence — its factor
@@ -21,8 +21,8 @@ AFFINE = ("degF", "degC")
 
 
 def parse_csharp(dotnet_dir):
-    unit_cs = open(f"{dotnet_dir}/src/Ogsa.Telemetry/Unit.cs", encoding="utf-8").read()
-    conv_cs = open(f"{dotnet_dir}/src/Ogsa.Telemetry/Conversions.cs", encoding="utf-8").read()
+    unit_cs = open(f"{dotnet_dir}/src/Ogs.Telemetry/Unit.cs", encoding="utf-8").read()
+    conv_cs = open(f"{dotnet_dir}/src/Ogs.Telemetry/Conversions.cs", encoding="utf-8").read()
     # wire strings live as enum comments (ToWireString covers target units
     # only; source-only units are documented in the enum: `KilometrePerHour, // km/h`)
     wire = {}
@@ -38,7 +38,7 @@ def parse_csharp(dotnet_dir):
 
 
 def parse_unreal(unreal_dir):
-    cpp = open(f"{unreal_dir}/Source/OgsaTelemetry/Private/TelemetryPublisherComponent.cpp",
+    cpp = open(f"{unreal_dir}/Source/OgsTelemetry/Private/TelemetryPublisherComponent.cpp",
                encoding="utf-8").read()
     pairs = {}
     for m in re.finditer(r'Pair\("([^"]*)",\s*"([^"]*)",\s*([^)]+)\)', cpp):
@@ -76,9 +76,9 @@ def factor(expr):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--dotnet", default="../ogsa-ts-dotnet")
-    ap.add_argument("--unreal", default="../ogsa-ts-unreal")
-    ap.add_argument("--standard", default="../OGSA-Telemetry-Standard")
+    ap.add_argument("--dotnet", default="../ogs-ts-dotnet")
+    ap.add_argument("--unreal", default="../ogs-ts-unreal")
+    ap.add_argument("--standard", default="../OGS-Telemetry-Standard")
     a = ap.parse_args()
 
     cs_pairs, cs_affine = parse_csharp(a.dotnet)

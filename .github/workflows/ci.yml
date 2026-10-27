@@ -2,7 +2,7 @@ name: ci
 # Sibling repos are checked out from the public GitHub org — update ORG
 # if the account name differs from the workspace layout.
 #
-# repository_dispatch (type sibling-pushed): fired by ogsa-ts-unity after
+# repository_dispatch (type sibling-pushed): fired by ogs-ts-unity after
 # its own push, since that repo's core-drift job checks this one back —
 # self-heals the push-order race (see core-drift below) without a manual
 # re-run. test/corpus-determinism skip on this trigger; they're this
@@ -14,7 +14,7 @@ on:
     types: [sibling-pushed]
 
 env:
-  ORG: Open-Game-Standards-Alliance
+  ORG: Open-Game-Standards
 
 jobs:
   test:
@@ -28,15 +28,15 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
         with:
-          repository: ${{ env.ORG }}/OGSA-Telemetry-Standard
-          path: OGSA-Telemetry-Standard
+          repository: ${{ env.ORG }}/OGS-Telemetry-Standard
+          path: OGS-Telemetry-Standard
         # (ConformanceVectorTests decode the corpus — checked out inside the
         # repo for CI; CorpusDir() probes nested then sibling)
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
       - name: Build (all TFMs)
-        run: dotnet build src/Ogsa.Telemetry/Ogsa.Telemetry.csproj --nologo
+        run: dotnet build src/Ogs.Telemetry/Ogs.Telemetry.csproj --nologo
       - name: Test
         run: dotnet test --nologo
 
@@ -49,22 +49,22 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
         with:
-          repository: ${{ env.ORG }}/OGSA-Telemetry-Standard
-          path: OGSA-Telemetry-Standard
+          repository: ${{ env.ORG }}/OGS-Telemetry-Standard
+          path: OGS-Telemetry-Standard
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
       - name: Regenerate corpus
         run: dotnet run --project src/ConformanceGen -- /tmp/corpus --nologo
       - name: Byte-compare against the standard repo
-        run: diff -r -x README.md -x validate.py /tmp/corpus OGSA-Telemetry-Standard/conformance
+        run: diff -r -x README.md -x validate.py /tmp/corpus OGS-Telemetry-Standard/conformance
         # (README.md and validate.py in the corpus dir are hand-written, not generated)
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
       - run: pip install pycapnp
-      - name: Independent check (canonical OGSA encoding, manifest exactness)
-        run: python OGSA-Telemetry-Standard/conformance/validate.py
+      - name: Independent check (canonical OGS encoding, manifest exactness)
+        run: python OGS-Telemetry-Standard/conformance/validate.py
 
   writers-current:
     # The committed schema writers must match what gen_writers.py emits
@@ -78,14 +78,14 @@ jobs:
           python-version: "3.x"
       - run: pip install pycapnp
       - run: python capnp/gen_writers.py
-      - run: git diff --exit-code src/Ogsa.Telemetry/Schema
+      - run: git diff --exit-code src/Ogs.Telemetry/Schema
 
   core-drift:
     # The vendored cores in the engine repos must stay byte-identical to
-    # this repo's src/Ogsa.Telemetry (the sync-core.sh contract).
+    # this repo's src/Ogs.Telemetry (the sync-core.sh contract).
     # Advisory, not blocking: this fetches sibling repos' CURRENT default
     # branch, so a core change pushed here before its sync lands in
-    # ogsa-ts-godot/ogsa-ts-unity shows up as a transient failure that has
+    # ogs-ts-godot/ogs-ts-unity shows up as a transient failure that has
     # nothing to do with this push's own correctness. Treat a red run here
     # right after a multi-repo change as a prompt to check the siblings
     # were pushed, not as a broken build.
@@ -95,25 +95,25 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
         with:
-          repository: ${{ env.ORG }}/ogsa-ts-godot
-          path: ogsa-ts-godot
+          repository: ${{ env.ORG }}/ogs-ts-godot
+          path: ogs-ts-godot
       - uses: actions/checkout@v7
         with:
-          repository: ${{ env.ORG }}/ogsa-ts-unity
-          path: ogsa-ts-unity
+          repository: ${{ env.ORG }}/ogs-ts-unity
+          path: ogs-ts-unity
       - name: Godot core drift
         run: diff -r -x '*.csproj' -x obj -x bin
-              src/Ogsa.Telemetry ogsa-ts-godot/addon/ogsa_telemetry/Core
+              src/Ogs.Telemetry ogs-ts-godot/addon/ogs_telemetry/Core
       - name: Unity core drift
         run: diff -r -x '*.csproj' -x obj -x bin -x '*.meta' -x '*.asmdef' -x ThirdParty
-              src/Ogsa.Telemetry ogsa-ts-unity/Runtime/Core
+              src/Ogs.Telemetry ogs-ts-unity/Runtime/Core
         # (.meta/asmdef/ThirdParty are Unity packaging sidecars, not vendored source)
 
   lockstep:
     # The bind-path conversion tables must be identical across the C#
     # core, UE SourceFactor, and the standard's IMPLEMENTING.md table.
     # Advisory, not blocking — same cross-repo push-order race as
-    # core-drift above (fetches ogsa-ts-unreal and the standard repo's
+    # core-drift above (fetches ogs-ts-unreal and the standard repo's
     # current default branch).
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -121,24 +121,24 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
         with:
-          repository: ${{ env.ORG }}/ogsa-ts-unreal
-          path: ogsa-ts-unreal
+          repository: ${{ env.ORG }}/ogs-ts-unreal
+          path: ogs-ts-unreal
       - uses: actions/checkout@v7
         with:
-          repository: ${{ env.ORG }}/OGSA-Telemetry-Standard
-          path: OGSA-Telemetry-Standard
+          repository: ${{ env.ORG }}/OGS-Telemetry-Standard
+          path: OGS-Telemetry-Standard
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
       - run: python3 tools/lockstep.py
-            --dotnet . --unreal ogsa-ts-unreal --standard OGSA-Telemetry-Standard
+            --dotnet . --unreal ogs-ts-unreal --standard OGS-Telemetry-Standard
 
   notify-unity:
-    # ogsa-ts-unity's own core-drift job checks this repo back — tell it
+    # ogs-ts-unity's own core-drift job checks this repo back — tell it
     # to recheck now that this push landed, so a failure caused purely by
     # push-order timing self-heals instead of staying red until someone
     # notices and re-runs it by hand. Needs CROSS_REPO_DISPATCH_TOKEN (a
-    # fine-grained PAT scoped to just the Open-Game-Standards-Alliance
+    # fine-grained PAT scoped to just the Open-Game-Standards
     # engine repos, with Contents: Read and write — confirmed by a live
     # 403 "Resource not accessible by personal access token" from this
     # endpoint when that permission was missing; GitHub's own docs don't
@@ -152,7 +152,7 @@ jobs:
       # blocks it there); gate through this env var instead
       HAS_DISPATCH_TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN != '' }}
     steps:
-      - name: Dispatch sibling-pushed to ogsa-ts-unity
+      - name: Dispatch sibling-pushed to ogs-ts-unity
         if: env.HAS_DISPATCH_TOKEN == 'true'
         env:
           TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
@@ -160,13 +160,13 @@ jobs:
           status=$(curl -s -o /tmp/dispatch-response.json -w '%{http_code}' -X POST \
             -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ env.ORG }}/ogsa-ts-unity/dispatches" \
+            "https://api.github.com/repos/${{ env.ORG }}/ogs-ts-unity/dispatches" \
             -d "{\"event_type\":\"sibling-pushed\",\"client_payload\":{\"source\":\"${{ github.repository }}\",\"sha\":\"${{ github.sha }}\"}}")
           echo "HTTP status: $status"
           cat /tmp/dispatch-response.json 2>/dev/null || true
           # the response body is GitHub's own error text, never the token
           # (which curl never prints) — safe to show in logs for diagnosis
           if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
-            echo "dispatch to ogsa-ts-unity failed (see response above)"
+            echo "dispatch to ogs-ts-unity failed (see response above)"
             exit 1
           fi

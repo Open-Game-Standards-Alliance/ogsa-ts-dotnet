@@ -5,11 +5,11 @@ using System.Threading;
 using System.Net;
 using System.Net.Sockets;
 
-namespace Ogsa.Telemetry
+namespace Ogs.Telemetry
 {
 
 /// <summary>
-/// OGSA-TS UDP-multicast receiver. Joins the group and demuxes by frame
+/// OGS-TS UDP-multicast receiver. Joins the group and demuxes by frame
 /// type. Foreign packets (bad magic) and unknown frame types are skipped
 /// silently per the evolution rules; neither decode failures nor exceptions
 /// thrown by event handlers kill the receive loop.
