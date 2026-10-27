@@ -15,8 +15,10 @@ clears every other variant's storage.
 
 Supports exactly what the schema uses — top-level structs and enums,
 primitive/enum/Text/struct fields, List(struct), one unnamed union per
-struct, no explicit defaults — and fails loudly on anything else, so a
-schema change that needs more support cannot slip through.
+struct, named unions (emitted as a nested view type over the parent's
+storage, e.g. `obj.LocalGravity.InitVector()`), no explicit defaults — and
+fails loudly on anything else, so a schema change that needs more support
+cannot slip through.
 
 Usage (pip install pycapnp):
   python capnp/gen_writers.py                       # C#, this repo
@@ -88,8 +90,58 @@ class Field:
         return self.kind in ("text", "struct", "list")
 
 
+class Union:
+    """One union's variants and discriminant. A struct's unnamed union and
+    each named union are separate: switching variant clears only that
+    union's storage."""
+    def __init__(self, disc_bit, fields):
+        self.disc_bit = disc_bit
+        self.fields = sorted(fields, key=lambda f: f.disc)
+
+    def clears(self):
+        """Union storage to clear on a variant switch: (kind, offset, width),
+        each shared slot once."""
+        out = []
+        for f in self.fields:
+            if f.kind in WIDTH:
+                c = ("bits", f.bit, f.width)
+            elif f.is_pointer:
+                c = ("ptr", f.ptr, None)
+            else:
+                continue
+            if c not in out:
+                out.append(c)
+        return out
+
+
+class Group:
+    """A named union: a group whose fields all sit in its union, laid out in
+    the parent's data and pointer sections."""
+    def __init__(self, owner, f, schema, names):
+        g = schema.fields[f.name].schema.node
+        s = g.struct
+        self.name = f.name
+        self.prop = pascal(f.name)
+        if g.nestedNodes:
+            fail(f"{owner}.{f.name}: nested declarations")
+        fields = []
+        for gf in sorted(s.fields, key=lambda x: x.codeOrder):
+            if str(gf.which) != "slot":
+                fail(f"{owner}.{f.name}.{gf.name}: nested group")
+            if gf.discriminantValue == NO_DISCRIMINANT:
+                fail(f"{owner}.{f.name}.{gf.name}: group field outside its union")
+            if gf.slot.hadExplicitDefault:
+                fail(f"{owner}.{f.name}.{gf.name}: explicit default")
+            fld = Field(gf, names, f"{owner}.{f.name}")
+            if fld.kind == "text":
+                fail(f"{owner}.{f.name}.{gf.name}: Text in a named union")
+            fields.append(fld)
+        self.union = Union(s.discriminantOffset * 16, fields)
+
+
 class Struct:
-    def __init__(self, name, node, names):
+    def __init__(self, name, schema, names):
+        node = schema.node
         s = node.struct
         if node.nestedNodes:
             fail(f"{name}: nested declarations")
@@ -100,36 +152,32 @@ class Struct:
         self.pointers = s.pointerCount
         self.disc_bit = s.discriminantOffset * 16
         self.fields = []
+        self.groups = []
         for f in sorted(s.fields, key=lambda f: f.codeOrder):
-            if str(f.which) != "slot":
-                fail(f"{name}.{f.name}: groups / named unions")
+            which = str(f.which)
+            if which == "group":
+                if f.discriminantValue != NO_DISCRIMINANT:
+                    fail(f"{name}.{f.name}: group inside a union")
+                self.groups.append(Group(name, f, schema, names))
+                continue
+            if which != "slot":
+                fail(f"{name}.{f.name}: {which} field")
             if f.slot.hadExplicitDefault:
                 fail(f"{name}.{f.name}: explicit default")
             self.fields.append(Field(f, names, name))
-        self.union = sorted((f for f in self.fields if f.in_union),
-                            key=lambda f: f.disc)
+        variants = [f for f in self.fields if f.in_union]
+        self.union = Union(self.disc_bit, variants) if variants else None
 
     def created(self):
         """Pointer fields the constructor fills: non-union Text/struct, and
-        the discriminant-0 variant's payload when it is one."""
-        return [f for f in self.fields
-                if f.kind in ("text", "struct")
-                and (not f.in_union or f.disc == 0)]
+        each union's discriminant-0 variant payload when it is one."""
+        unions = [self.union] if self.union else []
+        unions += [g.union for g in self.groups]
+        return [f for f in self.fields if f.kind in ("text", "struct") and not f.in_union] +                [f for u in unions for f in u.fields if f.kind in ("text", "struct") and f.disc == 0]
 
-    def clears(self):
-        """Union storage to clear on a variant switch: (kind, offset, width),
-        each shared slot once."""
-        out = []
-        for f in self.union:
-            if f.kind in WIDTH:
-                c = ("bits", f.bit, f.width)
-            elif f.is_pointer:
-                c = ("ptr", f.ptr, None)
-            else:
-                continue
-            if c not in out:
-                out.append(c)
-        return out
+    def referenced(self):
+        """Every field, group variants included (dependency ordering)."""
+        return self.fields + [f for g in self.groups for f in g.union.fields]
 
 
 def load(path):
@@ -145,7 +193,8 @@ def load(path):
         if which == "enum":
             model.append(("enum", name, [e.name for e in node.enum.enumerants]))
         elif which == "struct":
-            model.append(("struct", name, Struct(name, node, names)))
+            schema = getattr(module, name).schema
+            model.append(("struct", name, Struct(name, schema, names)))
         else:
             fail(f"{name}: {which} declaration")
     return model
@@ -156,27 +205,62 @@ def load(path):
 # ---------------------------------------------------------------------------
 
 CS_PRIM = {
-    # kind: (C# type, getter, setter value)
-    "bool": ("bool", "GetBool({b})", "SetBool({b}, value)"),
-    "int8": ("sbyte", "(sbyte)GetBits({b}, 8)", "SetBits({b}, 8, (ulong)value)"),
-    "uint8": ("byte", "(byte)GetBits({b}, 8)", "SetBits({b}, 8, value)"),
-    "int16": ("short", "(short)GetBits({b}, 16)", "SetBits({b}, 16, (ulong)value)"),
-    "uint16": ("ushort", "(ushort)GetBits({b}, 16)", "SetBits({b}, 16, value)"),
-    "int32": ("int", "(int)GetBits({b}, 32)", "SetBits({b}, 32, (ulong)value)"),
-    "uint32": ("uint", "(uint)GetBits({b}, 32)", "SetBits({b}, 32, value)"),
-    "int64": ("long", "(long)GetBits({b}, 64)", "SetBits({b}, 64, (ulong)value)"),
-    "uint64": ("ulong", "GetBits({b}, 64)", "SetBits({b}, 64, value)"),
-    "float32": ("float", "GetFloat32({b})", "SetFloat32({b}, value)"),
-    "float64": ("double", "GetFloat64({b})", "SetFloat64({b}, value)"),
+    # kind: (C# type, getter, setter value); {r} = receiver prefix
+    "bool": ("bool", "{r}GetBool({b})", "{r}SetBool({b}, value)"),
+    "int8": ("sbyte", "(sbyte){r}GetBits({b}, 8)", "{r}SetBits({b}, 8, (ulong)value)"),
+    "uint8": ("byte", "(byte){r}GetBits({b}, 8)", "{r}SetBits({b}, 8, value)"),
+    "int16": ("short", "(short){r}GetBits({b}, 16)", "{r}SetBits({b}, 16, (ulong)value)"),
+    "uint16": ("ushort", "(ushort){r}GetBits({b}, 16)", "{r}SetBits({b}, 16, value)"),
+    "int32": ("int", "(int){r}GetBits({b}, 32)", "{r}SetBits({b}, 32, (ulong)value)"),
+    "uint32": ("uint", "(uint){r}GetBits({b}, 32)", "{r}SetBits({b}, 32, value)"),
+    "int64": ("long", "(long){r}GetBits({b}, 64)", "{r}SetBits({b}, 64, (ulong)value)"),
+    "uint64": ("ulong", "{r}GetBits({b}, 64)", "{r}SetBits({b}, 64, value)"),
+    "float32": ("float", "{r}GetFloat32({b})", "{r}SetFloat32({b}, value)"),
+    "float64": ("double", "{r}GetFloat64({b})", "{r}SetFloat64({b}, value)"),
 }
+
+
+def cs_variant(union):
+    out = ["public enum Variant : ushort", "{"]
+    out += [f"    {f.prop} = {f.disc}," for f in union.fields]
+    return out + ["}"]
+
+
+def cs_select(union, r=""):
+    """Which and Select for one union, over receiver `r`."""
+    out = [f"public Variant Which => (Variant){r}GetBits({union.disc_bit}, 16);",
+           "", "void Select(Variant v)", "{", "    if (Which == v) return;"]
+    for kind, off, width in union.clears():
+        out.append(f"    {r}SetBits({off}, {width}, 0);" if kind == "bits"
+                   else f"    {r}SetPointer({off}, null);")
+    out += [f"    {r}SetBits({union.disc_bit}, 16, (ushort)v);", "}"]
+    return out
+
+
+def indent(lines):
+    return [("    " + line) if line else "" for line in lines]
+
+
+def cs_group(st, g):
+    """A named union as a view over the parent's storage."""
+    view = f"{g.prop}Group"
+    out = [f"public {view} {g.prop} => new {view}(this);", "",
+           f"/// <summary>Named union <c>{g.name}</c>, a view over the {st.name}'s storage.</summary>",
+           f"public readonly struct {view}", "{"]
+    out += indent(cs_variant(g.union))
+    out += ["", f"    readonly {st.name} _s;", f"    internal {view}({st.name} s) {{ _s = s; }}", ""]
+    out += indent(cs_select(g.union, "_s."))
+    for f in g.union.fields:
+        out.append("")
+        out += indent(cs_field(f, "_s."))
+    out.append("}")
+    return out
 
 
 def cs_struct(st):
     out = [f"public sealed class {st.name} : WireStruct", "{"]
     if st.union:
-        out += ["    public enum Variant : ushort", "    {"]
-        out += [f"        {f.prop} = {f.disc}," for f in st.union]
-        out += ["    }", ""]
+        out += indent(cs_variant(st.union)) + [""]
     out.append(f"    public {st.name}() : base({st.data_words}, {st.pointers})")
     out.append("    {")
     for f in st.created():
@@ -184,31 +268,29 @@ def cs_struct(st):
         out.append(f"        SetPointer({f.ptr}, {value});")
     out.append("    }")
     if st.union:
-        out += ["", f"    public Variant Which => (Variant)GetBits({st.disc_bit}, 16);",
-                "", "    void Select(Variant v)", "    {", "        if (Which == v) return;"]
-        for kind, off, width in st.clears():
-            out.append(f"        SetBits({off}, {width}, 0);" if kind == "bits"
-                       else f"        SetPointer({off}, null);")
-        out += [f"        SetBits({st.disc_bit}, 16, (ushort)v);", "    }"]
+        out += [""] + indent(cs_select(st.union))
     for f in st.fields:
         out.append("")
-        out.extend(("    " + line) if line else "" for line in cs_field(f))
+        out += indent(cs_field(f))
+    for g in st.groups:
+        out.append("")
+        out += indent(cs_group(st, g))
     out.append("}")
     return out
 
 
-def cs_field(f):
+def cs_field(f, r=""):
     sel = f"Select(Variant.{f.prop}); " if f.in_union else ""
     guard = f"Which == Variant.{f.prop} ? " if f.in_union else ""
     if f.kind == "void":
         return [f"public void Set{f.prop}() => Select(Variant.{f.prop});"]
     if f.kind in CS_PRIM or f.kind == "enum":
         if f.kind == "enum":
-            cs, getter = f.type_name, f"({f.type_name})GetBits({f.bit}, 16)"
-            setter = f"SetBits({f.bit}, 16, (ushort)value)"
+            cs, getter = f.type_name, f"({f.type_name}){r}GetBits({f.bit}, 16)"
+            setter = f"{r}SetBits({f.bit}, 16, (ushort)value)"
         else:
             cs, get, set_ = CS_PRIM[f.kind]
-            getter, setter = get.format(b=f.bit), set_.format(b=f.bit)
+            getter, setter = get.format(b=f.bit, r=r), set_.format(b=f.bit, r=r)
         if f.in_union:
             getter = f"{guard}{getter} : default"
         return [f"public {cs} {f.prop}", "{", f"    get => {getter};",
@@ -216,30 +298,30 @@ def cs_field(f):
     if f.kind == "text":
         if f.in_union:
             return [f"public string? {f.prop}", "{",
-                    f"    get => {guard}(string?)GetPointer({f.ptr}) : null;",
-                    f"    set {{ {sel}SetPointer({f.ptr}, value ?? \"\"); }}", "}"]
+                    f"    get => {guard}(string?){r}GetPointer({f.ptr}) : null;",
+                    f"    set {{ {sel}{r}SetPointer({f.ptr}, value ?? \"\"); }}", "}"]
         return [f"public string {f.prop}", "{",
-                f"    get => (string)GetPointer({f.ptr})!;",
-                f"    set => SetPointer({f.ptr}, value ?? \"\");", "}"]
+                f"    get => (string){r}GetPointer({f.ptr})!;",
+                f"    set => {r}SetPointer({f.ptr}, value ?? \"\");", "}"]
     if f.kind == "struct":
         cs = f.type_name
         if f.in_union:
-            return [f"public {cs}? {f.prop} => {guard}({cs}?)GetPointer({f.ptr}) : null;",
+            return [f"public {cs}? {f.prop} => {guard}({cs}?){r}GetPointer({f.ptr}) : null;",
                     "",
                     f"/// <summary>Selects <c>{f.name}</c>; returns its (existing or new) payload.</summary>",
                     f"public {cs} Init{f.prop}()", "{",
-                    f"    if (Which == Variant.{f.prop} && GetPointer({f.ptr}) is {cs} existing) return existing;",
+                    f"    if (Which == Variant.{f.prop} && {r}GetPointer({f.ptr}) is {cs} existing) return existing;",
                     f"    Select(Variant.{f.prop});",
                     f"    var created = new {cs}();",
-                    f"    SetPointer({f.ptr}, created);",
+                    f"    {r}SetPointer({f.ptr}, created);",
                     "    return created;", "}"]
-        return [f"public {cs} {f.prop} => ({cs})GetPointer({f.ptr})!;"]
+        return [f"public {cs} {f.prop} => ({cs}){r}GetPointer({f.ptr})!;"]
     # list
     cs = f.type_name
     return ["/// <summary>Written when non-empty; null and empty both encode as null.</summary>",
             f"public List<{cs}>? {f.prop}", "{",
-            f"    get => (List<{cs}>?)GetPointer({f.ptr});",
-            f"    set => SetPointer({f.ptr}, value);", "}"]
+            f"    get => (List<{cs}>?){r}GetPointer({f.ptr});",
+            f"    set => {r}SetPointer({f.ptr}, value);", "}"]
 
 
 def emit_csharp(model):
@@ -274,27 +356,59 @@ def emit_csharp(model):
 
 NS = "::ogsa::telemetry::schema::"
 CPP_PRIM = {
-    "bool": ("bool", "WireReadBool({b})", "WireWriteBool({b}, v)"),
-    "int8": ("int8_t", "(int8_t)WireReadBits({b}, 8)", "WireWriteBits({b}, 8, (uint64_t)(uint8_t)v)"),
-    "uint8": ("uint8_t", "(uint8_t)WireReadBits({b}, 8)", "WireWriteBits({b}, 8, v)"),
-    "int16": ("int16_t", "(int16_t)WireReadBits({b}, 16)", "WireWriteBits({b}, 16, (uint64_t)(uint16_t)v)"),
-    "uint16": ("uint16_t", "(uint16_t)WireReadBits({b}, 16)", "WireWriteBits({b}, 16, v)"),
-    "int32": ("int32_t", "(int32_t)WireReadBits({b}, 32)", "WireWriteBits({b}, 32, (uint64_t)(uint32_t)v)"),
-    "uint32": ("uint32_t", "(uint32_t)WireReadBits({b}, 32)", "WireWriteBits({b}, 32, v)"),
-    "int64": ("int64_t", "(int64_t)WireReadBits({b}, 64)", "WireWriteBits({b}, 64, (uint64_t)v)"),
-    "uint64": ("uint64_t", "WireReadBits({b}, 64)", "WireWriteBits({b}, 64, v)"),
-    "float32": ("float", "WireReadFloat32({b})", "WireWriteFloat32({b}, v)"),
-    "float64": ("double", "WireReadFloat64({b})", "WireWriteFloat64({b}, v)"),
+    # kind: (C++ type, getter, setter); {r} = receiver prefix
+    "bool": ("bool", "{r}WireReadBool({b})", "{r}WireWriteBool({b}, v)"),
+    "int8": ("int8_t", "(int8_t){r}WireReadBits({b}, 8)", "{r}WireWriteBits({b}, 8, (uint64_t)(uint8_t)v)"),
+    "uint8": ("uint8_t", "(uint8_t){r}WireReadBits({b}, 8)", "{r}WireWriteBits({b}, 8, v)"),
+    "int16": ("int16_t", "(int16_t){r}WireReadBits({b}, 16)", "{r}WireWriteBits({b}, 16, (uint64_t)(uint16_t)v)"),
+    "uint16": ("uint16_t", "(uint16_t){r}WireReadBits({b}, 16)", "{r}WireWriteBits({b}, 16, v)"),
+    "int32": ("int32_t", "(int32_t){r}WireReadBits({b}, 32)", "{r}WireWriteBits({b}, 32, (uint64_t)(uint32_t)v)"),
+    "uint32": ("uint32_t", "(uint32_t){r}WireReadBits({b}, 32)", "{r}WireWriteBits({b}, 32, v)"),
+    "int64": ("int64_t", "(int64_t){r}WireReadBits({b}, 64)", "{r}WireWriteBits({b}, 64, (uint64_t)v)"),
+    "uint64": ("uint64_t", "{r}WireReadBits({b}, 64)", "{r}WireWriteBits({b}, 64, v)"),
+    "float32": ("float", "{r}WireReadFloat32({b})", "{r}WireWriteFloat32({b}, v)"),
+    "float64": ("double", "{r}WireReadFloat64({b})", "{r}WireWriteFloat64({b}, v)"),
 }
+
+
+def cpp_variant(union):
+    out = ["enum class Variant : uint16_t", "{"]
+    out += [f"    {f.prop} = {f.disc}," for f in union.fields]
+    return out + ["};"]
+
+
+def cpp_select(union, r=""):
+    out = ["void Select(Variant v)", "{", "    if (Which() == v) return;"]
+    for kind, off, width in union.clears():
+        out.append(f"    {r}WireWriteBits({off}, {width}, 0);" if kind == "bits"
+                   else f"    {r}WirePtrs[{off}].Reset();")
+    out += [f"    {r}WireWriteBits({union.disc_bit}, 16, (uint16_t)v);", "}"]
+    return out
+
+
+def cpp_group(st, g):
+    """A named union as a view over the parent's storage (members of a
+    nested class have the parent's access to its protected wire helpers)."""
+    view = f"{g.prop}Group"
+    out = [f"/// Named union `{g.name}`, a view over the {st.name}'s storage.",
+           f"class {view}", "{", "public:"]
+    out += indent(cpp_variant(g.union))
+    out += ["", f"    explicit {view}({st.name}& s) : S(&s) {{}}",
+            f"    Variant Which() const {{ return (Variant)S->WireReadBits({g.union.disc_bit}, 16); }}"]
+    for f in g.union.fields:
+        out.append("")
+        out += indent(cpp_field(f, "S->"))
+    out += ["", "private:", f"    {st.name}* S;", ""]
+    out += indent(cpp_select(g.union, "S->"))
+    out.append("};")
+    out.append(f"{view} {g.prop}() {{ return {view}(*this); }}")
+    return out
 
 
 def cpp_struct(st):
     out = [f"class {st.name} final : public ::ogsa::telemetry::wire::Struct", "{", "public:"]
     if st.union:
-        out.append("    enum class Variant : uint16_t")
-        out.append("    {")
-        out += [f"        {f.prop} = {f.disc}," for f in st.union]
-        out += ["    };", ""]
+        out += indent(cpp_variant(st.union)) + [""]
     out.append(f"    {st.name}() : Struct({st.data_words}, {st.pointers})")
     out.append("    {")
     for f in st.created():
@@ -304,22 +418,20 @@ def cpp_struct(st):
             out.append(f"        WireEmplace<{NS}{f.type_name}>({f.ptr});")
     out.append("    }")
     if st.union:
-        out += ["", f"    Variant Which() const {{ return (Variant)WireReadBits({st.disc_bit}, 16); }}"]
+        out += ["", f"    Variant Which() const {{ return (Variant)WireReadBits({st.union.disc_bit}, 16); }}"]
     for f in st.fields:
         out.append("")
-        out.extend(("    " + line) if line else "" for line in cpp_field(f))
+        out += indent(cpp_field(f))
+    for g in st.groups:
+        out.append("")
+        out += indent(cpp_group(st, g))
     if st.union:
-        out += ["", "private:", "    void Select(Variant v)", "    {",
-                "        if (Which() == v) return;"]
-        for kind, off, width in st.clears():
-            out.append(f"        WireWriteBits({off}, {width}, 0);" if kind == "bits"
-                       else f"        WirePtrs[{off}].Reset();")
-        out += [f"        WireWriteBits({st.disc_bit}, 16, (uint16_t)v);", "    }"]
+        out += ["", "private:"] + indent(cpp_select(st.union))
     out.append("};")
     return out
 
 
-def cpp_field(f):
+def cpp_field(f, r=""):
     sel = f"Select(Variant::{f.prop}); " if f.in_union else ""
     guard = f"Which() == Variant::{f.prop} ? " if f.in_union else ""
     if f.kind == "void":
@@ -327,41 +439,41 @@ def cpp_field(f):
     if f.kind in CPP_PRIM or f.kind == "enum":
         if f.kind == "enum":
             ty = f"{NS}{f.type_name}"
-            getter = f"({ty})WireReadBits({f.bit}, 16)"
-            setter = f"WireWriteBits({f.bit}, 16, (uint16_t)v)"
+            getter = f"({ty}){r}WireReadBits({f.bit}, 16)"
+            setter = f"{r}WireWriteBits({f.bit}, 16, (uint16_t)v)"
         else:
             ty, get, set_ = CPP_PRIM[f.kind]
-            getter, setter = get.format(b=f.bit), set_.format(b=f.bit)
+            getter, setter = get.format(b=f.bit, r=r), set_.format(b=f.bit, r=r)
         if f.in_union:
             getter = f"{guard}{getter} : {ty}()"
         return [f"{ty} {f.prop}() const {{ return {getter}; }}",
                 f"void Set{f.prop}({ty} v) {{ {sel}{setter}; }}"]
     if f.kind == "text":
         if f.in_union:
-            return [f"const std::string* {f.prop}() const {{ return {guard}&WirePtrs[{f.ptr}].Text : nullptr; }}",
-                    f"void Set{f.prop}(std::string v) {{ {sel}WireSetText({f.ptr}, std::move(v)); }}"]
-        return [f"const std::string& {f.prop}() const {{ return WirePtrs[{f.ptr}].Text; }}",
-                f"void Set{f.prop}(std::string v) {{ WireSetText({f.ptr}, std::move(v)); }}"]
+            return [f"const std::string* {f.prop}() const {{ return {guard}&{r}WirePtrs[{f.ptr}].Text : nullptr; }}",
+                    f"void Set{f.prop}(std::string v) {{ {sel}{r}WireSetText({f.ptr}, std::move(v)); }}"]
+        return [f"const std::string& {f.prop}() const {{ return {r}WirePtrs[{f.ptr}].Text; }}",
+                f"void Set{f.prop}(std::string v) {{ {r}WireSetText({f.ptr}, std::move(v)); }}"]
     if f.kind == "struct":
         ty = f"{NS}{f.type_name}"
         if f.in_union:
-            return [f"{ty}* Get{f.prop}() {{ return {guard}static_cast<{ty}*>(WirePtrs[{f.ptr}].Child.get()) : nullptr; }}",
+            return [f"{ty}* Get{f.prop}() {{ return {guard}static_cast<{ty}*>({r}WirePtrs[{f.ptr}].Child.get()) : nullptr; }}",
                     f"/// Selects `{f.name}`; returns its (existing or new) payload.",
                     f"{ty}& Init{f.prop}()",
                     "{",
-                    f"    if (Which() == Variant::{f.prop} && WirePtrs[{f.ptr}].Child)",
-                    f"        return static_cast<{ty}&>(*WirePtrs[{f.ptr}].Child);",
+                    f"    if (Which() == Variant::{f.prop} && {r}WirePtrs[{f.ptr}].Child)",
+                    f"        return static_cast<{ty}&>(*{r}WirePtrs[{f.ptr}].Child);",
                     f"    Select(Variant::{f.prop});",
-                    f"    return WireEmplace<{ty}>({f.ptr});",
+                    f"    return {r}WireEmplace<{ty}>({f.ptr});",
                     "}"]
-        return [f"{ty}& {f.prop}() {{ return static_cast<{ty}&>(*WirePtrs[{f.ptr}].Child); }}",
-                f"const {ty}& {f.prop}() const {{ return static_cast<const {ty}&>(*WirePtrs[{f.ptr}].Child); }}"]
+        return [f"{ty}& {f.prop}() {{ return static_cast<{ty}&>(*{r}WirePtrs[{f.ptr}].Child); }}",
+                f"const {ty}& {f.prop}() const {{ return static_cast<const {ty}&>(*{r}WirePtrs[{f.ptr}].Child); }}"]
     ty = f"{NS}{f.type_name}"
     return [f"/// `{f.name}`: written when non-empty, null when empty.",
-            f"{ty}& Add{f.prop}() {{ return WireAppend<{ty}>({f.ptr}); }}",
-            f"size_t {f.prop}Count() const {{ return WirePtrs[{f.ptr}].List.size(); }}",
-            f"{ty}& {f.prop}(size_t i) {{ return static_cast<{ty}&>(*WirePtrs[{f.ptr}].List[i]); }}",
-            f"void Clear{f.prop}() {{ WirePtrs[{f.ptr}].List.clear(); }}"]
+            f"{ty}& Add{f.prop}() {{ return {r}WireAppend<{ty}>({f.ptr}); }}",
+            f"size_t {f.prop}Count() const {{ return {r}WirePtrs[{f.ptr}].List.size(); }}",
+            f"{ty}& {f.prop}(size_t i) {{ return static_cast<{ty}&>(*{r}WirePtrs[{f.ptr}].List[i]); }}",
+            f"void Clear{f.prop}() {{ {r}WirePtrs[{f.ptr}].List.clear(); }}"]
 
 
 def emit_cpp(model):
@@ -398,7 +510,7 @@ def emit_cpp(model):
             return
         if name in stack:
             fail(f"{name}: recursive struct reference")
-        for f in structs[name].fields:
+        for f in structs[name].referenced():
             if f.kind in ("struct", "list"):
                 visit(f.type_name, stack + (name,))
         done.add(name)

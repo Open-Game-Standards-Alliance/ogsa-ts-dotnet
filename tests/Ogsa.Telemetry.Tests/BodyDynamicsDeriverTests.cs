@@ -322,5 +322,55 @@ public class BodyDynamicsDeriverTests
         AssertNear(1e-6 / Dt, w.Y, 1e-6 / Dt * 0.01, "w.y tiny");
     }
 
+    [Fact]
+    public void Gravity_vector_sets_the_static_reaction()
+    {
+        // CONVENTIONS C-12: specific force reacts to the declared gravity —
+        // low gravity reads its own magnitude, a sideways pull reads on sway
+        var low = new BodyDynamicsDeriver { GravityVector = new Vector3(0f, -1.62f, 0f) };
+        low.Sample(0.0, Vector3.Zero, Quaternion.Identity);
+        AssertNear(1.62, low.SpecificForce.Y, 1e-5, "sf.y (lunar)");
+
+        var sideways = new BodyDynamicsDeriver { GravityVector = new Vector3(-3f, 0f, 0f) };
+        sideways.Sample(0.0, Vector3.Zero, Quaternion.Identity);
+        AssertNear(3, sideways.SpecificForce.X, 1e-5, "sf.x (pull toward −x)");
+        AssertNear(0, sideways.SpecificForce.Y, 1e-5, "sf.y");
+
+        var weightless = new BodyDynamicsDeriver { GravityVector = Vector3.Zero };
+        weightless.Sample(0.0, Vector3.Zero, Quaternion.Identity);
+        Assert.Equal(Vector3.Zero, weightless.SpecificForce);
+    }
+
+    [Fact]
+    public void Gravity_vector_applies_while_accelerating()
+    {
+        // f = a − g with a = (0, 0, 2) under lunar gravity
+        var d = new BodyDynamicsDeriver { GravityVector = new Vector3(0f, -1.62f, 0f) };
+        double t = 0, v = 0;
+        for (int i = 0; i < 90; i++)
+        {
+            v += 2.0 * Dt;
+            d.Sample(t, new Vector3(0, 0, (float)(0.5 * 2.0 * t * t)),
+                     Quaternion.Identity, hasVelocity: true,
+                     engineVelocity: new Vector3(0, 0, (float)v));
+            t += Dt;
+        }
+        AssertNear(2.0, d.SpecificForce.Z, 0.1, "sf.z (surge)");
+        AssertNear(1.62, d.SpecificForce.Y, 0.1, "sf.y");
+    }
+
+    [Fact]
+    public void Gravity_change_applies_without_reset()
+    {
+        // stepping onto a different body mid-stream: the next sample reacts
+        // to the new gravity, the estimator keeps its history
+        var d = new BodyDynamicsDeriver();
+        d.Sample(0.0, Vector3.Zero, Quaternion.Identity);
+        d.Sample(Dt, Vector3.Zero, Quaternion.Identity);
+        d.GravityVector = new Vector3(0f, -3.71f, 0f);
+        d.Sample(2 * Dt, Vector3.Zero, Quaternion.Identity);
+        AssertNear(3.71, d.SpecificForce.Y, 1e-4, "sf.y (Mars)");
+    }
+
     static float FloatPi => (float)System.Math.PI;
 }

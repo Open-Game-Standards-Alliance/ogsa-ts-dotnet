@@ -291,7 +291,7 @@ public class PublisherLoopbackTests
         pub.Tick(0.0); // discovery sent with defaults
 
         var d1 = await first.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(9.81f, d1.Environment.Gravity, 4);
+        Assert.Equal(BodyDynamicsDeriver.Gravity, d1.Environment.Gravity); // standard gravity
         Assert.Equal(101325f, d1.Environment.Pressure); // Pa (schema, CONVENTIONS C-3)
         Assert.Equal(CapnpGen.ContactMedium.asphalt, d1.Environment.Medium);
 
@@ -359,6 +359,26 @@ public class PublisherLoopbackTests
             (true, CapnpGen.MotionObject.WHICH.NoDynamics),
             (false, CapnpGen.MotionObject.WHICH.BodyDynamics),
         }, frames.Take(3));
+    }
+
+    [Fact]
+    public void Effective_Gravity_Resolves_Local_Then_Environment()
+    {
+        // CONVENTIONS C-12 resolution order, as the deriver is fed it
+        using var sender = new TelemetrySender(port: 41247, localInterface: IPAddress.Loopback);
+        using var pub = new TelemetryPublisher(sender, "gravity");
+        Assert.Equal(new Vector3(0, -BodyDynamicsDeriver.Gravity, 0), pub.EffectiveGravity);
+
+        pub.SetGravity(new Vector3(0, -1.62f, 0));            // straight down: scalar form
+        Assert.Equal(new Vector3(0, -1.62f, 0), pub.EnvironmentGravity);
+        pub.SetGravity(new Vector3(3, -4, 0));                 // tilted: vector form
+        Assert.Equal(new Vector3(3, -4, 0), pub.EffectiveGravity);
+
+        var local = new Vector3(-2, 0, 0);
+        pub.BindLocalGravity(() => local);
+        Assert.Equal(local, pub.EffectiveGravity);
+        pub.BindLocalGravity(null);
+        Assert.Equal(new Vector3(3, -4, 0), pub.EffectiveGravity);
     }
 
     [Fact]

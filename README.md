@@ -76,6 +76,16 @@ keep flowing with the frozen pose, `session.paused` set and no dynamics,
 so receivers bring hardware to rest instead of reading the silence as a
 dead session. The engine plugins do all of this for you.
 
+Gravity ([CONVENTIONS C-12](https://github.com/Open-Game-Standards-Alliance/OGSA-Telemetry-Standard/blob/main/CONVENTIONS.md#c-12-gravity)): discovery declares standard gravity along world −Y
+unless told otherwise. `SetGravity(Vector3)` (or the `SetEnvironment`
+vector overload) declares the session gravity — a straight-down vector
+rides as the scalar alone, any other direction also as `gravityVector`.
+`BindLocalGravity(getter)` carries per-object gravity in every motion
+frame for gravity that varies by position or faster than discovery.
+`EffectiveGravity` resolves what the stream declares for the object; set
+`BodyDynamicsDeriver.GravityVector` from it so derived specific force
+reacts to the same gravity.
+
 ## Loopback demo
 
 Two terminals:

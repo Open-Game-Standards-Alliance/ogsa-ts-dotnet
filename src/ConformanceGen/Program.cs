@@ -105,11 +105,47 @@ var described = new Dictionary<string, (string frameType, string description, ob
             events = new[] { new { id = 7u, name = "body.impact", intensity = 0.75,
                                    duration = 0.25, direction = new { x = -1.0 } } },
         }),
+    ["discovery-gravity-vector"] = ("discovery",
+        "Environment gravityVector union variant: tilted session gravity, " +
+        "scalar gravity = its magnitude (CONVENTIONS C-12)",
+        new
+        {
+            schemaVersion = 1, gameName = "conformance", sessionStartUnixUs = sessionUs,
+            environment = new
+            {
+                airDensity = 1.25, temperature = 20.0, pressure = 1.0, gravity = 5.0, medium = "vacuum",
+                gravityVector = new { x = 3.0, y = -4.0 },
+            },
+            objects = new[] { new { name = "obj", type = "spacecraft", primary = true } },
+        }),
+    ["motion-local-gravity"] = ("motion",
+        "MotionObject localGravity.vector with bodyDynamics: specific force is the " +
+        "reaction to the object's effective gravity (CONVENTIONS C-12)",
+        new
+        {
+            timestamp = 5.25,
+            objects = new[] { new { name = "obj",
+                position = new { x = 12.0, y = 0.5, z = -4.0 },
+                orientation = new { w = 1.0 },
+                bodyDynamics = new { specificForce = new { x = 2.0 } },
+                localGravity = new { vector = new { x = -2.0 } } } },
+        }),
+    ["motion-local-gravity-zero"] = ("motion",
+        "MotionObject localGravity.vector selected with an all-zero vector: weightless, " +
+        "distinct from noLocalGravity (CONVENTIONS C-12)",
+        new
+        {
+            timestamp = 6.5,
+            objects = new[] { new { name = "obj",
+                position = new { x = 1.0, y = 2.0, z = 3.0 },
+                orientation = new { w = 1.0 },
+                localGravity = new { vector = new { } } } },
+        }),
 };
 
 var manifest = new
 {
-    corpusVersion = 4,
+    corpusVersion = 5,
     schemaVersion = 1,
     envelope = new { magic = "OMT1", headerBytes = 8 },
     floatRule = "all floats in this corpus are float32-exact; implementations compare exactly",
