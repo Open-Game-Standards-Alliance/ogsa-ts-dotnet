@@ -27,6 +27,7 @@ Usage (pip install pycapnp):
 import argparse
 import pathlib
 import sys
+from typing import Iterable
 
 import capnp  # pycapnp
 
@@ -94,7 +95,7 @@ class Union:
     """One union's variants and discriminant. A struct's unnamed union and
     each named union are separate: switching variant clears only that
     union's storage."""
-    def __init__(self, disc_bit, fields):
+    def __init__(self, disc_bit, fields: Iterable[Field]):
         self.disc_bit = disc_bit
         self.fields = sorted(fields, key=lambda f: f.disc)
 
@@ -393,13 +394,13 @@ def cpp_group(st, g):
     out = [f"/// Named union `{g.name}`, a view over the {st.name}'s storage.",
            f"class {view}", "{", "public:"]
     out += indent(cpp_variant(g.union))
-    out += ["", f"    explicit {view}({st.name}& s) : S(&s) {{}}",
-            f"    Variant Which() const {{ return (Variant)S->WireReadBits({g.union.disc_bit}, 16); }}"]
+    out += ["", f"    explicit {view}({st.name}& s) : Self(&s) {{}}",
+            f"    Variant Which() const {{ return (Variant)Self->WireReadBits({g.union.disc_bit}, 16); }}"]
     for f in g.union.fields:
         out.append("")
-        out += indent(cpp_field(f, "S->"))
-    out += ["", "private:", f"    {st.name}* S;", ""]
-    out += indent(cpp_select(g.union, "S->"))
+        out += indent(cpp_field(f, "Self->"))
+    out += ["", "private:", f"    {st.name}* Self;", ""]
+    out += indent(cpp_select(g.union, "Self->"))
     out.append("};")
     out.append(f"{view} {g.prop}() {{ return {view}(*this); }}")
     return out
