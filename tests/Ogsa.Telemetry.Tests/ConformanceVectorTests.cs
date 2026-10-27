@@ -174,4 +174,62 @@ public class ConformanceVectorTests
         Assert.Equal(0.25f, ev.Duration);
         Assert.Equal(-1f, ev.Direction.X);
     }
+
+    [Fact]
+    public void Discovery_Gravity_Vector()
+    {
+        var (type, root) = Load("discovery-gravity-vector");
+        Assert.Equal(FrameType.Discovery, type);
+        var d = CapnpGen.DiscoveryFrame.READER.create(root);
+        var env = d.Environment;
+        Assert.Equal(CapnpGen.Environment.WHICH.GravityVector, env.which);
+        Assert.Equal(CapnpGen.ContactMedium.vacuum, env.Medium);
+        Assert.Equal(5f, env.Gravity); // |gravityVector|
+        Assert.Equal(new System.Numerics.Vector3(3, -4, 0), Gravity.Session(env));
+        Assert.Equal(CapnpGen.ObjectType.spacecraft, Assert.Single(d.Objects).Type);
+    }
+
+    [Fact]
+    public void Motion_Local_Gravity()
+    {
+        var (_, root) = Load("motion-local-gravity");
+        var m = CapnpGen.MotionFrame.READER.create(root);
+        Assert.Equal(5.25, m.Timestamp);
+        var obj = Assert.Single(m.Objects);
+        Assert.Equal(CapnpGen.MotionObject.localGravity.WHICH.Vector, obj.LocalGravity.which);
+        Assert.Equal(CapnpGen.MotionObject.WHICH.BodyDynamics, obj.which);
+        // local gravity overrides the session gravity, and the specific
+        // force is the reaction to it: at rest, f = q⁻¹ · (0 − g)
+        var g = Gravity.Effective(obj, sessionGravity: new System.Numerics.Vector3(0, -9.5f, 0));
+        Assert.Equal(new System.Numerics.Vector3(-2, 0, 0), g);
+        var q = new System.Numerics.Quaternion(obj.Orientation.X, obj.Orientation.Y,
+                                               obj.Orientation.Z, obj.Orientation.W);
+        var sf = obj.BodyDynamics.SpecificForce;
+        Assert.Equal(new System.Numerics.Vector3(sf.X, sf.Y, sf.Z),
+                     Gravity.SpecificForce(System.Numerics.Vector3.Zero, q, g));
+    }
+
+    [Fact]
+    public void Motion_Local_Gravity_Zero()
+    {
+        var (_, root) = Load("motion-local-gravity-zero");
+        var m = CapnpGen.MotionFrame.READER.create(root);
+        var obj = Assert.Single(m.Objects);
+        // a selected zero vector is weightless, never "not provided"
+        Assert.Equal(CapnpGen.MotionObject.localGravity.WHICH.Vector, obj.LocalGravity.which);
+        Assert.Equal(System.Numerics.Vector3.Zero,
+                     Gravity.Effective(obj, sessionGravity: new System.Numerics.Vector3(0, -9.5f, 0)));
+    }
+
+    [Fact]
+    public void Absent_Local_Gravity_Falls_Back_To_Session()
+    {
+        var (_, root) = Load("motion-pose");
+        var obj = Assert.Single(CapnpGen.MotionFrame.READER.create(root).Objects);
+        Assert.Equal(CapnpGen.MotionObject.localGravity.WHICH.NoLocalGravity, obj.LocalGravity.which);
+        var (_, droot) = Load("discovery-minimal");
+        var session = Gravity.Session(CapnpGen.DiscoveryFrame.READER.create(droot).Environment);
+        Assert.Equal(new System.Numerics.Vector3(0, -9.5f, 0), session); // scalar along −Y
+        Assert.Equal(session, Gravity.Effective(obj, session));
+    }
 }

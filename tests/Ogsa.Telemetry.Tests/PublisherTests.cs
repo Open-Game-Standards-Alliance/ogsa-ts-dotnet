@@ -362,6 +362,52 @@ public class PublisherLoopbackTests
     }
 
     [Fact]
+    public async Task Gravity_Rides_Discovery_And_Every_Motion_Frame()
+    {
+        // tilted session gravity rides discovery as gravityVector + its
+        // magnitude; bound local gravity rides every motion frame
+        const int port = 41248;
+        using var receiver = new TelemetryReceiver(port: port, localInterface: IPAddress.Loopback);
+        var discovery = new TaskCompletionSource<CapnpGen.DiscoveryFrame.READER>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var locals = new List<Vector3?>();
+        receiver.DiscoveryReceived += d => discovery.TrySetResult(d);
+        receiver.MotionReceived += m =>
+        {
+            var lg = m.Objects[0].LocalGravity;
+            lock (locals)
+            {
+                locals.Add(lg.which == CapnpGen.MotionObject.localGravity.WHICH.Vector
+                    ? new Vector3(lg.Vector.X, lg.Vector.Y, lg.Vector.Z) : null);
+                if (locals.Count >= 3) done.TrySetResult();
+            }
+        };
+        receiver.Start();
+
+        using var sender = new TelemetrySender(port: port, localInterface: IPAddress.Loopback);
+        using var pub = new TelemetryPublisher(sender, "gravity-wire", motionHz: 60);
+        pub.DeclareObject("ship");
+        pub.SetGravity(new Vector3(3, -4, 0));
+        var local = new Vector3(-2, 0, 0);
+        pub.BindLocalGravity(() => local);
+
+        pub.Tick(0.0);
+        var d1 = await discovery.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(CapnpGen.Environment.WHICH.GravityVector, d1.Environment.which);
+        Assert.Equal(5f, d1.Environment.Gravity);
+        Assert.Equal(new Vector3(3, -4, 0), Gravity.Session(d1.Environment));
+
+        local = Vector3.Zero;            // weightless: still a selected vector
+        pub.Tick(0.017);
+        pub.BindLocalGravity(null);      // back to the session gravity
+        pub.Tick(0.034);
+
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(new Vector3?[] { new Vector3(-2, 0, 0), Vector3.Zero, null }, locals.Take(3));
+    }
+
+    [Fact]
     public void Effective_Gravity_Resolves_Local_Then_Environment()
     {
         // CONVENTIONS C-12 resolution order, as the deriver is fed it

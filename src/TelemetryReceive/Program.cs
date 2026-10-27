@@ -11,13 +11,21 @@ var motionPerObject = new Dictionary<string, long>();
 long violations = 0;
 var seenEventIds = new HashSet<uint>();
 long deduped = 0;
+// session gravity from the latest discovery (CONVENTIONS, Gravity);
+// standard gravity until the first discovery arrives
+var sessionGravity = new System.Numerics.Vector3(0f, -9.80665f, 0f);
 
 receiver.DiscoveryReceived += d =>
 {
     if (d.SchemaVersion != 1) Warn($"schemaVersion {d.SchemaVersion} != 1 (attempting anyway)");
     if (!d.Objects.Any(o => o.Primary)) Warn("no primary object in discovery");
+    sessionGravity = Gravity.Session(d.Environment);
+    if (d.Environment.which == CapnpGen.Environment.WHICH.GravityVector &&
+        MathF.Abs(sessionGravity.Length() - d.Environment.Gravity) > 1e-3f * MathF.Max(1f, d.Environment.Gravity))
+        Warn($"gravity {d.Environment.Gravity} != |gravityVector| {sessionGravity.Length():F3}");
     Console.WriteLine($"Discovery: game={d.GameName} schema={d.SchemaVersion} " +
-                      $"objects={d.Objects.Count} medium={d.Environment.Medium}");
+                      $"objects={d.Objects.Count} medium={d.Environment.Medium} " +
+                      $"gravity={Vec(sessionGravity)}");
     foreach (var o in d.Objects)
     {
         Console.WriteLine($"  object '{o.Name}' type={o.Type} typeLabel='{o.TypeLabel}' " +
@@ -60,10 +68,13 @@ receiver.MotionReceived += m =>
                 ? $"{c.Id}={c.Boolean}"
                 : $"{c.Id}={c.Number:F2}"));
         var (yaw, pitch, roll) = ToEulerDegrees(q);
+        // effective gravity: shown only when the object carries its own
+        var local = primary.LocalGravity.which == MotionObject.localGravity.WHICH.Vector
+            ? $" g={Vec(Gravity.Effective(primary, sessionGravity))}" : "";
         Console.WriteLine($"Motion: t={m.Timestamp:F2}s '{primary.Name}' " +
                           $"pos=({primary.Position.X:F2},{primary.Position.Y:F2},{primary.Position.Z:F2}) " +
                           $"|q|={norm:F3} yaw={Signed(yaw)}deg pitch={Signed(pitch)}deg roll={Signed(roll)}deg" +
-                          (vals.Length > 0 ? " " + vals : ""));
+                          local + (vals.Length > 0 ? " " + vals : ""));
     }
 };
 
@@ -87,6 +98,8 @@ static (float yaw, float pitch, float roll) ToEulerDegrees(
         : MathF.Asin(Clamp1(-r.Y / cosPitch)) * rad2deg;
     return (yaw, pitch, roll);
 }
+
+static string Vec(System.Numerics.Vector3 v) => $"({v.X:F2},{v.Y:F2},{v.Z:F2})";
 
 static float Clamp1(float v) => v < -1f ? -1f : v > 1f ? 1f : v;
 

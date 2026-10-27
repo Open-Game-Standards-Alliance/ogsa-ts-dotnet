@@ -312,9 +312,26 @@ namespace CapnpGen
     public class Environment : ICapnpSerializable
     {
         public const UInt64 typeId = 0x97648f18e2281faeUL;
+        public enum WHICH : ushort
+        {
+            NoGravityVector = 0,
+            GravityVector = 1,
+            undefined = 65535
+        }
+
         void ICapnpSerializable.Deserialize(DeserializerState arg_)
         {
             var reader = READER.create(arg_);
+            switch (reader.which)
+            {
+                case WHICH.NoGravityVector:
+                    which = reader.which;
+                    break;
+                case WHICH.GravityVector:
+                    GravityVector = CapnpSerializable.Create<CapnpGen.Vector3>(reader.GravityVector);
+                    break;
+            }
+
             AirDensity = reader.AirDensity;
             Temperature = reader.Temperature;
             Pressure = reader.Pressure;
@@ -323,8 +340,39 @@ namespace CapnpGen
             applyDefaults();
         }
 
+        private WHICH _which = WHICH.undefined;
+        private object _content;
+        public WHICH which
+        {
+            get => _which;
+            set
+            {
+                if (value == _which)
+                    return;
+                _which = value;
+                switch (value)
+                {
+                    case WHICH.NoGravityVector:
+                        break;
+                    case WHICH.GravityVector:
+                        _content = null;
+                        break;
+                }
+            }
+        }
+
         public void serialize(WRITER writer)
         {
+            writer.which = which;
+            switch (which)
+            {
+                case WHICH.NoGravityVector:
+                    break;
+                case WHICH.GravityVector:
+                    GravityVector?.serialize(writer.GravityVector);
+                    break;
+            }
+
             writer.AirDensity = AirDensity;
             writer.Temperature = Temperature;
             writer.Pressure = Pressure;
@@ -371,6 +419,16 @@ namespace CapnpGen
             set;
         }
 
+        public CapnpGen.Vector3 GravityVector
+        {
+            get => _which == WHICH.GravityVector ? (CapnpGen.Vector3)_content : null;
+            set
+            {
+                _which = WHICH.GravityVector;
+                _content = value;
+            }
+        }
+
         public struct READER
         {
             readonly DeserializerState ctx;
@@ -382,18 +440,26 @@ namespace CapnpGen
             public static READER create(DeserializerState ctx) => new READER(ctx);
             public static implicit operator DeserializerState(READER reader) => reader.ctx;
             public static implicit operator READER(DeserializerState ctx) => new READER(ctx);
+            public WHICH which => (WHICH)ctx.ReadDataUShort(144U, (ushort)0);
             public float AirDensity => ctx.ReadDataFloat(0UL, 0F);
             public float Temperature => ctx.ReadDataFloat(32UL, 0F);
             public float Pressure => ctx.ReadDataFloat(64UL, 0F);
             public float Gravity => ctx.ReadDataFloat(96UL, 0F);
             public CapnpGen.ContactMedium Medium => (CapnpGen.ContactMedium)ctx.ReadDataUShort(128UL, (ushort)0);
+            public CapnpGen.Vector3.READER GravityVector => which == WHICH.GravityVector ? ctx.ReadStruct(0, CapnpGen.Vector3.READER.create) : default;
         }
 
         public class WRITER : SerializerState
         {
             public WRITER()
             {
-                this.SetStruct(3, 0);
+                this.SetStruct(3, 1);
+            }
+
+            public WHICH which
+            {
+                get => (WHICH)this.ReadDataUShort(144U, (ushort)0);
+                set => this.WriteData(144U, (ushort)value, (ushort)0);
             }
 
             public float AirDensity
@@ -424,6 +490,12 @@ namespace CapnpGen
             {
                 get => (CapnpGen.ContactMedium)this.ReadDataUShort(128UL, (ushort)0);
                 set => this.WriteData(128UL, (ushort)value, (ushort)0);
+            }
+
+            public CapnpGen.Vector3.WRITER GravityVector
+            {
+                get => which == WHICH.GravityVector ? BuildPointer<CapnpGen.Vector3.WRITER>(0) : default;
+                set => Link(0, value);
             }
         }
     }
@@ -1824,6 +1896,7 @@ namespace CapnpGen
             Orientation = CapnpSerializable.Create<CapnpGen.Quaternion>(reader.Orientation);
             DrivePoints = reader.DrivePoints?.ToReadOnlyList(_ => CapnpSerializable.Create<CapnpGen.DrivePoint>(_));
             Channels = reader.Channels?.ToReadOnlyList(_ => CapnpSerializable.Create<CapnpGen.ChannelValue>(_));
+            LocalGravity = CapnpSerializable.Create<CapnpGen.MotionObject.localGravity>(reader.LocalGravity);
             applyDefaults();
         }
 
@@ -1871,6 +1944,7 @@ namespace CapnpGen
             Orientation?.serialize(writer.Orientation);
             writer.DrivePoints.Init(DrivePoints, (_s1, _v1) => _v1?.serialize(_s1));
             writer.Channels.Init(Channels, (_s1, _v1) => _v1?.serialize(_s1));
+            LocalGravity?.serialize(writer.LocalGravity);
         }
 
         void ICapnpSerializable.Serialize(SerializerState arg_)
@@ -1932,6 +2006,12 @@ namespace CapnpGen
             set;
         }
 
+        public CapnpGen.MotionObject.localGravity LocalGravity
+        {
+            get;
+            set;
+        }
+
         public struct READER
         {
             readonly DeserializerState ctx;
@@ -1951,13 +2031,14 @@ namespace CapnpGen
             public CapnpGen.BodyDynamics.READER BodyDynamics => which == WHICH.BodyDynamics ? ctx.ReadStruct(3, CapnpGen.BodyDynamics.READER.create) : default;
             public IReadOnlyList<CapnpGen.DrivePoint.READER> DrivePoints => ctx.ReadList(4).Cast(CapnpGen.DrivePoint.READER.create);
             public IReadOnlyList<CapnpGen.ChannelValue.READER> Channels => ctx.ReadList(5).Cast(CapnpGen.ChannelValue.READER.create);
+            public localGravity.READER LocalGravity => new localGravity.READER(ctx);
         }
 
         public class WRITER : SerializerState
         {
             public WRITER()
             {
-                this.SetStruct(1, 6);
+                this.SetStruct(1, 7);
             }
 
             public WHICH which
@@ -2006,6 +2087,126 @@ namespace CapnpGen
             {
                 get => BuildPointer<ListOfStructsSerializer<CapnpGen.ChannelValue.WRITER>>(5);
                 set => Link(5, value);
+            }
+
+            public localGravity.WRITER LocalGravity
+            {
+                get => Rewrap<localGravity.WRITER>();
+            }
+        }
+
+        [System.CodeDom.Compiler.GeneratedCode("capnpc-csharp", "1.3.0.0"), TypeId(0xbc55f46234a6663fUL)]
+        public class localGravity : ICapnpSerializable
+        {
+            public const UInt64 typeId = 0xbc55f46234a6663fUL;
+            public enum WHICH : ushort
+            {
+                NoLocalGravity = 0,
+                Vector = 1,
+                undefined = 65535
+            }
+
+            void ICapnpSerializable.Deserialize(DeserializerState arg_)
+            {
+                var reader = READER.create(arg_);
+                switch (reader.which)
+                {
+                    case WHICH.NoLocalGravity:
+                        which = reader.which;
+                        break;
+                    case WHICH.Vector:
+                        Vector = CapnpSerializable.Create<CapnpGen.Vector3>(reader.Vector);
+                        break;
+                }
+
+                applyDefaults();
+            }
+
+            private WHICH _which = WHICH.undefined;
+            private object _content;
+            public WHICH which
+            {
+                get => _which;
+                set
+                {
+                    if (value == _which)
+                        return;
+                    _which = value;
+                    switch (value)
+                    {
+                        case WHICH.NoLocalGravity:
+                            break;
+                        case WHICH.Vector:
+                            _content = null;
+                            break;
+                    }
+                }
+            }
+
+            public void serialize(WRITER writer)
+            {
+                writer.which = which;
+                switch (which)
+                {
+                    case WHICH.NoLocalGravity:
+                        break;
+                    case WHICH.Vector:
+                        Vector?.serialize(writer.Vector);
+                        break;
+                }
+            }
+
+            void ICapnpSerializable.Serialize(SerializerState arg_)
+            {
+                serialize(arg_.Rewrap<WRITER>());
+            }
+
+            public void applyDefaults()
+            {
+            }
+
+            public CapnpGen.Vector3 Vector
+            {
+                get => _which == WHICH.Vector ? (CapnpGen.Vector3)_content : null;
+                set
+                {
+                    _which = WHICH.Vector;
+                    _content = value;
+                }
+            }
+
+            public struct READER
+            {
+                readonly DeserializerState ctx;
+                public READER(DeserializerState ctx)
+                {
+                    this.ctx = ctx;
+                }
+
+                public static READER create(DeserializerState ctx) => new READER(ctx);
+                public static implicit operator DeserializerState(READER reader) => reader.ctx;
+                public static implicit operator READER(DeserializerState ctx) => new READER(ctx);
+                public WHICH which => (WHICH)ctx.ReadDataUShort(16U, (ushort)0);
+                public CapnpGen.Vector3.READER Vector => which == WHICH.Vector ? ctx.ReadStruct(6, CapnpGen.Vector3.READER.create) : default;
+            }
+
+            public class WRITER : SerializerState
+            {
+                public WRITER()
+                {
+                }
+
+                public WHICH which
+                {
+                    get => (WHICH)this.ReadDataUShort(16U, (ushort)0);
+                    set => this.WriteData(16U, (ushort)value, (ushort)0);
+                }
+
+                public CapnpGen.Vector3.WRITER Vector
+                {
+                    get => which == WHICH.Vector ? BuildPointer<CapnpGen.Vector3.WRITER>(6) : default;
+                    set => Link(6, value);
+                }
             }
         }
     }
