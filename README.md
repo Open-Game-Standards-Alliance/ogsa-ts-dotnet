@@ -11,13 +11,18 @@ haptics, and cueing systems. Loopback-testable on any single machine
 (macOS, Linux, Windows); the same code is the starting point for Unity
 integrations and Windows-based receivers.
 
-Community & support: [Discord](https://discord.gg/tseF4Q6U99)
+Community & support: [Discord](https://discord.gg/tseF4Q6U99) · Development is funded by [sponsorship](https://github.com/sponsors/BrianGilbert)
 
-Status: **bootstrap** — envelope, multicast transport, canonical schema
-writers, a demo sender, a reference receiver, and a passing loopback test
-suite. The schema layer is generated from the standard's schema
-(`ogs_telemetry.capnp`, currently v1); wire compatibility follows
-the standard's evolution rules (unknown fields/enums/frame types skipped).
+Status: **v1, conformance-tested** — the dependency-free sender core
+(canonical encoder, `TelemetryPublisher` declare/bind/push wiring,
+bind-time unit conversion, body-dynamics deriver), the receiving library
+(`Ogs.Telemetry.Receiving`), a reference receiver and a demo sender. The
+tests include byte-identical encoding of the standard's conformance corpus,
+which `ConformanceGen` here produces. The same core is vendored by the
+Unity and Godot SDKs, and CI checks they don't drift. The schema layer is
+generated from the standard's schema (`ogs_telemetry.capnp`, v1); wire
+compatibility follows the standard's evolution rules (unknown
+fields/enums/frame types skipped).
 
 The sending library (`Ogs.Telemetry`) has **no Cap'n Proto runtime
 dependency**: frames are written by generated writers over a small
